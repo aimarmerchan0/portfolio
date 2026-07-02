@@ -7,394 +7,9 @@
 <title>Aimar Merchán — Archivo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<!-- Tipografía profesional: Archivo (variable, ancho expandido ~ OWNERS) + Outfit (geométrica limpia ~ GOPHER) -->
 <link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@0,62..125,100..900;1,62..125,100..900&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<style>
-/* ═══════════ sistema ═══════════ */
-:root{
-  --fondo:#FAFAF8; --fondo2:#F0F0EC; --tinta:#141412; --gris:#8A8A84; --gris2:#CFCFC8;
-  --linea:rgba(20,20,18,.09); --rojo:#C94F42;
-  --ios:cubic-bezier(.32,.72,.24,1);
-  --rebote:cubic-bezier(.34,1.45,.5,1);
-  --sup:env(safe-area-inset-top);
-  --inf:env(safe-area-inset-bottom);
-}
-*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;overscroll-behavior:none}
-body{
-  background:var(--fondo);color:var(--tinta);
-  font-family:'Outfit',-apple-system,system-ui,sans-serif;
-  font-size:15.5px;line-height:1.45;font-weight:400;
-  -webkit-font-smoothing:antialiased;
-  position:fixed;inset:0;overflow:hidden;
-}
-img{display:block;width:100%;height:100%;object-fit:cover;background:#E9E9E4}
-button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
-
-/* display: Archivo expandida — carácter profesional */
-.disp{
-  font-family:'Archivo',sans-serif;
-  font-weight:800;font-stretch:118%;
-  text-transform:uppercase;letter-spacing:.01em;line-height:.95;
-}
-.mini-t{font-family:'Archivo',sans-serif;font-stretch:110%;font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--gris)}
-
-/* grano sutil */
-body::after{
-  content:'';position:fixed;inset:0;z-index:500;pointer-events:none;opacity:.03;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.95' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
-}
-
-.btn-flot{
-  width:38px;height:38px;border-radius:50%;
-  background:rgba(250,250,248,.88);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
-  display:flex;align-items:center;justify-content:center;
-  box-shadow:0 1px 10px rgba(20,20,18,.16);
-  transition:transform .25s var(--rebote);
-}
-.btn-flot:active{transform:scale(.86)}
-.btn-flot svg{width:16px;height:16px;stroke:var(--tinta);stroke-width:2.1;fill:none;stroke-linecap:round;stroke-linejoin:round}
-
-.pildora{
-  display:inline-flex;align-items:center;gap:6px;
-  background:var(--fondo);border:1px solid var(--linea);
-  border-radius:99px;padding:9px 16px;
-  font-family:'Archivo',sans-serif;font-stretch:110%;
-  font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
-  box-shadow:0 3px 14px rgba(20,20,18,.08);
-}
-.pildora svg{width:10px;height:10px;stroke:var(--tinta);stroke-width:2.4;fill:none;stroke-linecap:round}
-
-/* ═══════════ pantallas y push ═══════════ */
-.pantalla{position:fixed;inset:0;background:var(--fondo);display:flex;flex-direction:column;overflow:hidden}
-.raiz{z-index:10;transition:transform .55s var(--ios),border-radius .55s var(--ios)}
-body.empujada .raiz{transform:scale(.93) translateX(-4%);border-radius:26px;overflow:hidden}
-.push{z-index:30;transform:translateX(103%);transition:transform .55s var(--ios);box-shadow:-24px 0 60px rgba(20,20,18,.18)}
-.push.abierta{transform:none}
-#p-foto{z-index:40}
-body.nivel2 #p-colec{transform:scale(.95) translateX(-4%);border-radius:26px}
-.scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
-
-@keyframes sube{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
-.entra{animation:sube .8s var(--ios) backwards}
-
-.topbar{
-  position:absolute;top:0;left:0;right:0;z-index:20;
-  display:flex;align-items:center;justify-content:space-between;gap:10px;
-  padding:calc(var(--sup) + 8px) 16px 8px;pointer-events:none;
-}
-.topbar>*{pointer-events:auto}
-.topbar .titulo-mini{
-  position:absolute;left:50%;transform:translateX(-50%);
-  font-family:'Archivo',sans-serif;font-stretch:115%;font-weight:800;text-transform:uppercase;
-  font-size:13px;letter-spacing:.06em;
-  opacity:0;transition:opacity .25s;max-width:52%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-}
-.topbar .velo{
-  position:absolute;inset:0;z-index:-1;opacity:0;transition:opacity .25s;
-  background:rgba(250,250,248,.86);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
-  border-bottom:.5px solid var(--linea);
-}
-.topbar.solida .velo,.topbar.solida .titulo-mini{opacity:1}
-
-/* ═══════════ menú lateral ═══════════ */
-#velo-menu{position:fixed;inset:0;z-index:80;background:rgba(20,20,18,.32);opacity:0;visibility:hidden;transition:opacity .4s,visibility .4s}
-#velo-menu.abierto{opacity:1;visibility:visible}
-#menu{
-  position:fixed;top:0;bottom:0;left:0;width:min(78vw,320px);z-index:90;
-  background:var(--fondo);display:flex;flex-direction:column;
-  transform:translateX(-104%);transition:transform .55s var(--ios);
-  box-shadow:24px 0 60px rgba(20,20,18,.16);
-  padding:calc(var(--sup) + 28px) 24px calc(var(--inf) + 24px);
-}
-#menu.abierto{transform:none}
-#menu .quien{padding-bottom:22px;border-bottom:1px solid var(--linea)}
-#menu .quien .avatar{width:54px;height:54px;border-radius:16px;overflow:hidden;margin-bottom:14px}
-#menu .quien b{display:block;font-family:'Archivo',sans-serif;font-stretch:118%;font-weight:800;text-transform:uppercase;font-size:19px;letter-spacing:.01em;line-height:1.05}
-#menu .quien span{font-size:12.5px;color:var(--gris)}
-#menu nav{flex:1;padding-top:14px}
-#menu nav button{
-  display:flex;align-items:center;gap:14px;width:100%;
-  padding:15px 12px;border-radius:14px;font-size:15.5px;font-weight:500;text-align:left;
-  transition:background .2s,transform .2s var(--rebote);
-}
-#menu nav button:active{background:var(--fondo2);transform:scale(.97)}
-#menu nav button.activo{background:var(--fondo2)}
-#menu nav button svg{width:19px;height:19px;stroke:var(--tinta);stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
-#menu nav button .num{margin-left:auto;font-size:12.5px;color:var(--gris);font-weight:500}
-#menu .pie-menu{border-top:1px solid var(--linea);padding-top:18px;font-size:12.5px;color:var(--gris);line-height:1.7}
-#menu .pie-menu b{font-family:'Archivo',sans-serif;font-stretch:112%;font-weight:700;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--tinta)}
-
-/* ═══════════ cabecera raíz ═══════════ */
-.cab-raiz{padding:calc(var(--sup) + 16px) 22px 8px;display:flex;align-items:center;gap:8px}
-.cab-raiz h1{font-size:26px}
-.btn-menu{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;margin-left:-10px;transition:transform .25s var(--rebote)}
-.btn-menu:active{background:var(--fondo2);transform:scale(.88)}
-.btn-menu svg{width:20px;height:20px;stroke:var(--tinta);stroke-width:2;fill:none;stroke-linecap:round}
-
-/* ═══════════ INICIO ═══════════ */
-#p-inicio .saludo{padding:6px 22px 0;color:var(--gris);font-size:13.5px}
-#cifras{display:flex;align-items:stretch;margin:18px 22px 4px;border-top:1px solid var(--linea);border-bottom:1px solid var(--linea)}
-#cifras .c{flex:1;padding:16px 4px 13px;text-align:center;position:relative}
-#cifras .c + .c::before{content:'';position:absolute;left:0;top:14px;bottom:14px;width:1px;background:var(--linea)}
-#cifras .c b{display:block;font-family:'Archivo',sans-serif;font-stretch:120%;font-weight:800;font-size:28px;line-height:1.05}
-#cifras .c span{font-family:'Archivo',sans-serif;font-stretch:110%;font-size:9.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--gris)}
-.seccion-cab{display:flex;justify-content:space-between;align-items:baseline;padding:26px 22px 14px}
-.seccion-cab h2{font-size:16px}
-.seccion-cab button{font-size:13px;font-weight:500;color:var(--gris)}
-.carrusel{display:flex;gap:12px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:2px 22px 12px}
-.carrusel::-webkit-scrollbar{display:none}
-.tarjeta-mini{flex:0 0 auto;width:148px}
-.tarjeta-mini .marco{aspect-ratio:4/5;border-radius:16px;overflow:hidden;position:relative;box-shadow:0 12px 26px -14px rgba(20,20,18,.38);transition:transform .25s var(--rebote)}
-.tarjeta-mini:active .marco{transform:scale(.95)}
-.tarjeta-mini .marco::after{content:'';position:absolute;inset:0;background:linear-gradient(transparent 55%,rgba(10,10,9,.62))}
-.tarjeta-mini .marco b{position:absolute;left:12px;bottom:10px;right:10px;z-index:2;color:#FAFAF8;font-family:'Archivo',sans-serif;font-stretch:112%;font-weight:800;text-transform:uppercase;font-size:12.5px;letter-spacing:.03em;line-height:1.15}
-.fila-lugar{display:flex;align-items:center;gap:14px;padding:11px 22px;transition:background .2s}
-.fila-lugar:active{background:var(--fondo2)}
-.fila-lugar .marco{width:52px;height:52px;border-radius:14px;overflow:hidden;flex:0 0 auto}
-.fila-lugar b{display:block;font-size:15px;font-weight:600}
-.fila-lugar span{font-size:12.5px;color:var(--gris)}
-.fila-lugar svg{margin-left:auto;width:15px;height:15px;stroke:var(--gris2);stroke-width:2.2;fill:none;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
-.lema-pie{padding:30px 22px calc(var(--inf) + 36px);text-align:center}
-.lema-pie span{font-family:'Archivo',sans-serif;font-stretch:110%;font-size:10px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--gris)}
-
-/* ═══════════ GALERÍAS ═══════════ */
-.lista-galerias{padding:12px 18px calc(var(--inf) + 110px);display:flex;flex-direction:column;gap:18px}
-.tarjeta-galeria{
-  position:relative;border-radius:22px;overflow:hidden;aspect-ratio:4/4.6;
-  box-shadow:0 20px 44px -20px rgba(20,20,18,.42);
-  transition:transform .3s var(--rebote),box-shadow .3s;
-}
-.tarjeta-galeria:active{transform:scale(.965)}
-.tarjeta-galeria img{transition:transform 6s ease}
-.tarjeta-galeria:active img{transform:scale(1.05)}
-.tarjeta-galeria::after{content:'';position:absolute;inset:0;background:linear-gradient(rgba(10,10,9,.1),transparent 30%,transparent 48%,rgba(10,10,9,.68))}
-.tarjeta-galeria .datos{position:absolute;left:20px;bottom:16px;right:60px;z-index:2;color:#FAFAF8}
-.tarjeta-galeria .datos b{display:block;font-family:'Archivo',sans-serif;font-stretch:120%;font-weight:800;text-transform:uppercase;font-size:24px;letter-spacing:.01em;line-height:1}
-.tarjeta-galeria .datos span{font-size:12.5px;opacity:.85;display:block;margin-top:5px}
-.tarjeta-galeria .indice{position:absolute;top:16px;left:20px;z-index:2;color:#FAFAF8;font-family:'Archivo',sans-serif;font-stretch:112%;font-weight:700;font-size:10px;letter-spacing:.18em}
-.tarjeta-galeria .puntos{
-  position:absolute;right:14px;bottom:14px;z-index:3;
-  width:34px;height:34px;border-radius:50%;
-  background:rgba(20,20,18,.45);backdrop-filter:blur(8px);
-  display:flex;align-items:center;justify-content:center;color:#FAFAF8;font-size:16px;letter-spacing:1px;
-}
-.fab{
-  position:absolute;right:20px;bottom:calc(var(--inf) + 22px);z-index:25;
-  width:56px;height:56px;border-radius:50%;background:var(--tinta);color:#FAFAF8;
-  display:flex;align-items:center;justify-content:center;
-  box-shadow:0 14px 30px -8px rgba(20,20,18,.5);
-  transition:transform .3s var(--rebote);
-}
-.fab:active{transform:scale(.85) rotate(45deg)}
-.fab svg{width:22px;height:22px;stroke:#FAFAF8;stroke-width:2;fill:none;stroke-linecap:round}
-
-/* ═══════════ MAPA ═══════════ */
-#p-mapa{background:var(--fondo)}
-#mapa-zona{flex:1;position:relative;min-height:0}
-#mapa{position:absolute;inset:0;background:#E9E9E4}
-.leaflet-container{font:inherit}
-.leaflet-control-attribution{font-size:9px!important;background:rgba(250,250,248,.7)!important}
-/* marcador con foto */
-.pin{position:relative;width:52px;height:52px;transform-origin:bottom center;animation:pinPop .5s var(--rebote) backwards}
-@keyframes pinPop{from{transform:scale(0)}to{transform:scale(1)}}
-.pin .foto-pin{
-  width:52px;height:52px;border-radius:16px;overflow:hidden;
-  border:2.5px solid #FAFAF8;box-shadow:0 8px 20px rgba(20,20,18,.35);
-  transition:transform .25s var(--rebote),border-color .25s;
-}
-.pin .foto-pin img{width:100%;height:100%;object-fit:cover}
-.pin.activo .foto-pin{transform:scale(1.18);border-color:var(--tinta)}
-.pin .cuenta{
-  position:absolute;top:-7px;right:-7px;min-width:21px;height:21px;padding:0 5px;
-  background:var(--tinta);color:#FAFAF8;border-radius:99px;
-  display:flex;align-items:center;justify-content:center;
-  font-family:'Archivo',sans-serif;font-stretch:110%;font-size:10.5px;font-weight:800;
-  border:2px solid #FAFAF8;
-}
-/* tarjetas de lugar sobre el mapa */
-#mapa-cartas{
-  position:absolute;left:0;right:0;bottom:0;z-index:400;
-  display:flex;gap:12px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;
-  padding:14px 18px calc(var(--inf) + 16px);scroll-snap-type:x mandatory;
-}
-#mapa-cartas::-webkit-scrollbar{display:none}
-.carta-lugar{
-  flex:0 0 auto;width:min(74vw,300px);scroll-snap-align:center;
-  background:rgba(250,250,248,.92);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
-  border-radius:20px;box-shadow:0 16px 40px -16px rgba(20,20,18,.4);
-  padding:12px;display:flex;gap:12px;align-items:center;
-  border:1.5px solid transparent;transition:border-color .3s,transform .3s var(--rebote);
-}
-.carta-lugar:active{transform:scale(.97)}
-.carta-lugar.viva{border-color:var(--tinta)}
-.carta-lugar .marco{width:64px;height:64px;border-radius:14px;overflow:hidden;flex:0 0 auto}
-.carta-lugar .datos{flex:1;min-width:0}
-.carta-lugar b{display:block;font-family:'Archivo',sans-serif;font-stretch:115%;font-weight:800;text-transform:uppercase;font-size:14px;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.carta-lugar span{font-size:12px;color:var(--gris);display:block;margin-top:1px}
-.carta-lugar .ver{
-  flex:0 0 auto;background:var(--tinta);color:#FAFAF8;border-radius:12px;
-  font-family:'Archivo',sans-serif;font-stretch:110%;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
-  padding:11px 13px;transition:transform .2s var(--rebote);
-}
-.carta-lugar .ver:active{transform:scale(.9)}
-
-/* ═══════════ COLECCIÓN (galería o lugar) ═══════════ */
-#col-hero{position:relative;height:46svh;flex:0 0 auto;overflow:hidden}
-#col-hero img{will-change:transform;animation:kenburns 14s ease-in-out infinite alternate}
-@keyframes kenburns{from{transform:scale(1)}to{transform:scale(1.07)}}
-#col-hero::after{content:'';position:absolute;inset:0;background:linear-gradient(rgba(10,10,9,.18),transparent 40%,rgba(10,10,9,.6))}
-#col-hero .nombre{position:absolute;left:22px;bottom:40px;right:22px;z-index:2;color:#FAFAF8}
-#col-hero .nombre b{display:block;font-family:'Archivo',sans-serif;font-stretch:122%;font-weight:800;text-transform:uppercase;font-size:clamp(28px,8vw,40px);letter-spacing:.01em;line-height:.98}
-#col-hero .nombre span{font-size:13px;opacity:.85;display:block;margin-top:6px}
-#col-media{margin:-21px 0 0 22px;position:relative;z-index:5;flex:0 0 auto}
-#col-grid{columns:2;column-gap:10px;padding:18px 18px calc(var(--inf) + 34px)}
-#col-grid .celda{
-  break-inside:avoid;margin-bottom:10px;border-radius:14px;overflow:hidden;
-  position:relative;transition:transform .3s var(--rebote);animation:sube .7s var(--ios) backwards;
-}
-#col-grid .celda:active{transform:scale(.95)}
-#col-grid .celda .de{
-  position:absolute;left:8px;bottom:8px;z-index:2;color:#FAFAF8;
-  background:rgba(20,20,18,.5);backdrop-filter:blur(6px);border-radius:99px;padding:4px 9px;
-  font-family:'Archivo',sans-serif;font-stretch:110%;font-size:8.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
-}
-
-/* ═══════════ FOTO visor ═══════════ */
-#foto-cab{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:calc(var(--sup) + 8px) 16px 8px;position:relative}
-#foto-cab .centro{position:absolute;left:50%;transform:translateX(-50%);text-align:center;max-width:52%}
-#foto-cab .centro b{display:block;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#foto-cab .centro span{font-size:11px;color:var(--gris)}
-#foto-zona{flex:1;position:relative;overflow:hidden;touch-action:pan-y;min-height:0;display:flex;align-items:center}
-#foto-carro{display:flex;height:100%;width:100%;transition:transform .5s var(--ios);will-change:transform}
-.foto-slide{flex:0 0 100%;height:100%;display:flex;align-items:center;justify-content:center;padding:8px 16px;position:relative}
-.foto-slide .eco{
-  position:absolute;inset:8%;z-index:0;border-radius:40px;
-  filter:blur(46px) saturate(1.5);opacity:.4;transform:scale(1.02);pointer-events:none;
-}
-.foto-slide .marco{position:relative;z-index:1;max-width:100%;max-height:100%;border-radius:10px;overflow:hidden;box-shadow:0 24px 60px -24px rgba(20,20,18,.5)}
-.foto-slide .marco>img{width:auto;height:auto;max-width:100%;max-height:calc(100svh - var(--sup) - var(--inf) - 230px);object-fit:contain;background:none}
-
-#peek{
-  position:absolute;top:14px;left:50%;transform:translateX(-50%) scale(.9);z-index:8;
-  background:rgba(20,20,18,.8);color:#FAFAF8;backdrop-filter:blur(8px);
-  border-radius:99px;padding:7px 15px;
-  font-family:'Archivo',sans-serif;font-stretch:110%;font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;
-  opacity:0;transition:opacity .2s,transform .25s var(--rebote);pointer-events:none;
-}
-#peek.visible{opacity:1;transform:translateX(-50%) scale(1)}
-
-.cmp-capa{position:absolute;inset:0;clip-path:inset(0 0 0 var(--pos,50%))}
-.cmp-capa img{width:100%;height:100%;max-height:none!important;object-fit:cover}
-.cmp-div{position:absolute;top:0;bottom:0;left:var(--pos,50%);width:1.5px;background:#FAFAF8;z-index:6;transform:translateX(-.75px)}
-.cmp-div .asa{
-  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-  width:38px;height:38px;border-radius:50%;background:#FAFAF8;color:#141412;
-  display:flex;align-items:center;justify-content:center;font-size:10px;letter-spacing:1px;
-  box-shadow:0 4px 18px rgba(0,0,0,.35);
-}
-.cmp-tag{position:absolute;bottom:10px;z-index:6;font-family:'Archivo',sans-serif;font-stretch:110%;font-size:8.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#FAFAF8;background:rgba(20,20,18,.62);border-radius:99px;padding:4px 10px}
-.cmp-tag.a{left:10px}.cmp-tag.b{right:10px}
-.filtro-raw{filter:saturate(.3) contrast(.82) brightness(1.1)}
-
-#tira{flex:0 0 auto;display:flex;gap:7px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:14px 16px 4px}
-#tira::-webkit-scrollbar{display:none}
-#tira .pulg{
-  flex:0 0 auto;width:50px;height:50px;border-radius:11px;overflow:hidden;
-  border:2px solid transparent;opacity:.55;
-  transition:border-color .25s,opacity .25s,transform .3s var(--rebote);
-}
-#tira .pulg.viva{border-color:var(--tinta);opacity:1;transform:scale(1.1)}
-
-#acciones{
-  flex:0 0 auto;display:flex;justify-content:center;align-items:center;gap:2px;
-  margin:12px auto calc(var(--inf) + 14px);
-  background:var(--fondo);border:1px solid var(--linea);border-radius:17px;
-  box-shadow:0 8px 28px rgba(20,20,18,.1);padding:4px;
-}
-#acciones button{
-  display:flex;flex-direction:column;align-items:center;gap:3px;
-  padding:9px 15px;border-radius:13px;color:var(--gris);
-  font-family:'Archivo',sans-serif;font-stretch:110%;font-size:8.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
-  transition:background .2s,color .2s,transform .2s var(--rebote);
-}
-#acciones button:active{transform:scale(.92)}
-#acciones button svg{width:19px;height:19px;stroke:currentColor;stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round}
-#acciones button.activo{background:var(--tinta);color:#FAFAF8}
-#acciones .sep{width:1px;height:24px;background:var(--linea)}
-
-/* ═══════════ hoja inferior ═══════════ */
-#velo-hoja{position:fixed;inset:0;z-index:120;background:rgba(20,20,18,.32);opacity:0;visibility:hidden;transition:opacity .35s,visibility .35s}
-#velo-hoja.abierto{opacity:1;visibility:visible}
-#hoja{position:fixed;left:10px;right:10px;bottom:calc(var(--inf) + 10px);z-index:130;transform:translateY(120%);transition:transform .55s var(--ios)}
-#hoja.abierta{transform:none}
-#hoja .grupo{background:rgba(250,250,248,.95);backdrop-filter:blur(20px);border-radius:18px;overflow:hidden;margin-bottom:8px}
-#hoja .grupo .cab-hoja{padding:15px 18px 11px;border-bottom:.5px solid var(--linea)}
-#hoja .grupo .cab-hoja b{font-family:'Archivo',sans-serif;font-stretch:115%;font-weight:800;text-transform:uppercase;font-size:15px;letter-spacing:.02em}
-#hoja .grupo .cab-hoja span{display:block;font-size:12.5px;color:var(--gris);margin-top:3px}
-#hoja .grupo button.opcion,#hoja .grupo .dato{
-  display:flex;justify-content:space-between;align-items:center;width:100%;
-  padding:15px 18px;font-size:15px;border-bottom:.5px solid var(--linea);text-align:left;gap:16px;
-}
-#hoja .grupo button.opcion:last-child,#hoja .grupo .dato:last-child{border-bottom:none}
-#hoja .grupo button.opcion:active{background:var(--fondo2)}
-#hoja .grupo .dato{font-size:13.5px}
-#hoja .grupo .dato span{color:var(--gris);text-align:right}
-#hoja .cancelar{width:100%;background:rgba(250,250,248,.95);backdrop-filter:blur(20px);border-radius:18px;padding:16px;font-size:15.5px;font-weight:600;text-align:center}
-#hoja .cancelar:active{background:var(--fondo2)}
-
-#toast{
-  position:fixed;top:calc(var(--sup) + 12px);left:50%;transform:translate(-50%,-16px) scale(.95);z-index:200;
-  background:rgba(20,20,18,.88);color:#FAFAF8;backdrop-filter:blur(10px);
-  border-radius:99px;padding:10px 18px;font-size:13px;font-weight:500;
-  opacity:0;transition:opacity .3s,transform .35s var(--rebote);pointer-events:none;
-  max-width:86vw;text-align:center;
-}
-#toast.visible{opacity:1;transform:translate(-50%,0) scale(1)}
-
-/* ═══════════ arranque ═══════════ */
-#arranque{
-  position:fixed;inset:0;z-index:600;background:var(--fondo);
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
-  transition:opacity .7s,visibility .7s;
-}
-#arranque.fuera{opacity:0;visibility:hidden}
-#arranque .mono-g{
-  font-family:'Archivo',sans-serif;font-stretch:125%;font-weight:900;text-transform:uppercase;
-  font-size:clamp(54px,15vw,92px);letter-spacing:-.01em;line-height:1;
-  display:flex;overflow:hidden;
-}
-#arranque .mono-g span{display:inline-block;transform:translateY(110%);animation:letraA .7s var(--ios) forwards}
-#arranque .mono-g span:nth-child(2){animation-delay:.08s}
-#arranque .mono-g span:nth-child(3){animation-delay:.16s;color:var(--gris2)}
-@keyframes letraA{to{transform:none}}
-#arranque .linea-a{width:0;height:2px;background:var(--tinta);animation:lineaA .9s var(--ios) .4s forwards}
-@keyframes lineaA{to{width:120px}}
-#arranque .sub-a{font-family:'Archivo',sans-serif;font-stretch:112%;font-size:10px;font-weight:700;letter-spacing:.3em;text-transform:uppercase;color:var(--gris);opacity:0;animation:aparA .7s ease .7s forwards}
-@keyframes aparA{to{opacity:1}}
-#arranque::after{content:'';position:absolute;inset:0;background:#141412;opacity:0;pointer-events:none}
-#arranque.disparo::after{animation:disparoA .4s ease}
-@keyframes disparoA{0%{opacity:0}15%{opacity:1}100%{opacity:0}}
-
-/* iPad */
-@media (min-width:700px){
-  body{background:#E4E4DF}
-  .pantalla,#menu,#hoja,#toast{max-width:520px}
-  .pantalla{left:50%;transform:translateX(-50%)}
-  .push{transform:translateX(-50%) translateX(110%)}
-  .push.abierta{transform:translateX(-50%)}
-  body.empujada .raiz{transform:translateX(-50%) scale(.93)}
-  body.nivel2 #p-colec{transform:translateX(-50%) scale(.95);border-radius:26px}
-  #menu{left:calc(50% - 260px)}
-  #hoja{left:50%;transform:translateX(-50%) translateY(120%)}
-  #hoja.abierta{transform:translateX(-50%)}
-}
-@media (prefers-reduced-motion:reduce){
-  *{transition-duration:.01ms!important;animation:none!important}
-  .entra,#col-grid .celda,.pin{animation:none!important;opacity:1!important}
-}
-</style>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="css/estilos.css">
 </head>
 <body>
 
@@ -409,9 +24,9 @@ body.nivel2 #p-colec{transform:scale(.95) translateX(-4%);border-radius:26px}
 <div id="velo-menu" onclick="cerrarMenu()"></div>
 <aside id="menu">
   <div class="quien">
-    <div class="avatar"><img src="https://picsum.photos/id/1027/200/200" alt="Aimar"></div>
-    <b>Aimar Merchán</b>
-    <span>Fotógrafo · archivo expuesto</span>
+    <div class="avatar">AM</div>
+    <b id="menu-nombre"></b>
+    <span id="menu-sub"></span>
   </div>
   <nav>
     <button data-ir="inicio" class="activo">
@@ -427,9 +42,13 @@ body.nivel2 #p-colec{transform:scale(.95) translateX(-4%);border-radius:26px}
       Mapa <span class="num" id="menu-num-lug"></span>
     </button>
   </nav>
+  <div class="zona-admin">
+    <div class="estado"><i></i><span id="admin-estado">Visitante</span></div>
+    <button id="btn-admin" onclick="accionAdmin()">Acceso administrador</button>
+  </div>
   <div class="pie-menu">
-    <b>Nada en venta — todo a la vista</b><br><br>
-    © 2026 Aimar Merchán
+    <b id="menu-lema"></b><br><br>
+    © 2026 <span id="menu-copy"></span>
   </div>
 </aside>
 
@@ -438,15 +57,36 @@ body.nivel2 #p-colec{transform:scale(.95) translateX(-4%);border-radius:26px}
   <div class="cab-raiz">
     <button class="btn-menu" onclick="abrirMenu()"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg></button>
     <h1 class="disp">Inicio</h1>
+    <span class="admin-chip">Admin</span>
   </div>
   <div class="scroll">
-    <p class="saludo entra" id="saludo" style="animation-delay:.05s"></p>
-    <div id="cifras" class="entra" style="animation-delay:.12s"></div>
-    <div class="seccion-cab entra" style="animation-delay:.2s"><h2 class="disp">Galerías recientes</h2><button onclick="irRaiz('galerias')">Ver todas</button></div>
-    <div class="carrusel entra" id="recientes" style="animation-delay:.26s"></div>
-    <div class="seccion-cab entra" style="animation-delay:.32s"><h2 class="disp">Lugares</h2><button onclick="irRaiz('mapa')">Ver mapa</button></div>
-    <div id="inicio-lugares" class="entra" style="animation-delay:.38s"></div>
-    <p class="lema-pie"><span>Mirar despacio también es un oficio</span></p>
+    <p class="saludo entra" id="saludo"></p>
+    <div id="cifras" class="entra"></div>
+
+    <!-- botón-tarjeta del mapa -->
+    <button id="btn-mapa" class="entra" onclick="irRaiz('mapa')">
+      <svg class="topo" viewBox="0 0 340 130" preserveAspectRatio="none">
+        <path d="M-10,95 C40,70 70,110 120,88 C170,66 200,104 250,84 C300,64 330,96 360,80"/>
+        <path d="M-10,60 C50,40 90,78 150,55 C210,32 240,70 300,50 C330,40 350,55 360,48"/>
+        <path d="M-10,28 C60,12 100,44 170,26 C240,8 280,40 360,20"/>
+      </svg>
+      <span class="pin-dot" style="top:24%;left:22%"></span>
+      <span class="pin-dot" style="top:52%;left:58%"></span>
+      <span class="pin-dot" style="top:30%;left:80%"></span>
+      <div class="contenido">
+        <div class="txt">
+          <span id="btn-mapa-sub">— lugares</span>
+          <b>Explorar el mapa</b>
+        </div>
+        <div class="flecha"><svg viewBox="0 0 24 24"><path d="M5 12h13M13 6.5 18.5 12 13 17.5"/></svg></div>
+      </div>
+    </button>
+
+    <div class="seccion-cab entra"><h2 class="disp">Galerías recientes</h2><button onclick="irRaiz('galerias')">Ver todas</button></div>
+    <div class="carrusel entra" id="recientes"></div>
+    <div class="seccion-cab entra"><h2 class="disp">Lugares</h2><button onclick="irRaiz('mapa')">Ver mapa</button></div>
+    <div id="inicio-lugares" class="entra"></div>
+    <p class="lema-pie"><span id="lema-pie-txt"></span></p>
   </div>
 </div>
 
@@ -455,9 +95,10 @@ body.nivel2 #p-colec{transform:scale(.95) translateX(-4%);border-radius:26px}
   <div class="cab-raiz">
     <button class="btn-menu" onclick="abrirMenu()"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg></button>
     <h1 class="disp">Galerías</h1>
+    <span class="admin-chip">Admin</span>
   </div>
   <div class="scroll"><div class="lista-galerias" id="lista-galerias"></div></div>
-  <button class="fab" onclick="toast('Modo exposición — el archivo es de solo lectura')"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+  <button class="fab" onclick="fabGalerias()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
 </div>
 
 <!-- MAPA -->
@@ -465,14 +106,17 @@ body.nivel2 #p-colec{transform:scale(.95) translateX(-4%);border-radius:26px}
   <div class="cab-raiz">
     <button class="btn-menu" onclick="abrirMenu()"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg></button>
     <h1 class="disp">Mapa</h1>
+    <span class="admin-chip">Admin</span>
   </div>
   <div id="mapa-zona">
     <div id="mapa"></div>
+    <div id="aviso-fijar">Toca el mapa para fijar la ubicación</div>
     <div id="mapa-cartas"></div>
   </div>
+  <button class="fab" style="bottom:calc(env(safe-area-inset-bottom) + 118px)" onclick="fabMapa()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
 </div>
 
-<!-- COLECCIÓN (galería o lugar) -->
+<!-- COLECCIÓN -->
 <div class="pantalla push" id="p-colec">
   <div class="topbar" id="col-topbar">
     <div class="velo"></div>
@@ -488,6 +132,7 @@ body.nivel2 #p-colec{transform:scale(.95) translateX(-4%);border-radius:26px}
     <div id="col-media"><span class="pildora">Media (<span id="col-n"></span>) <svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span></div>
     <div id="col-grid"></div>
   </div>
+  <button class="fab" id="fab-colec" onclick="subirFotosAGaleria()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
 </div>
 
 <!-- FOTO visor -->
@@ -508,7 +153,7 @@ body.nivel2 #p-colec{transform:scale(.95) translateX(-4%);border-radius:26px}
       Antes / Después
     </button>
     <div class="sep"></div>
-    <button onclick="toast('Compartir está desactivado en modo exposición')">
+    <button onclick="compartirFoto()">
       <svg viewBox="0 0 24 24"><path d="M12 15V4M8 7.5 12 3.5l4 4"/><path d="M5 12v7a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19v-7"/></svg>
       Compartir
     </button>
@@ -523,424 +168,18 @@ body.nivel2 #p-colec{transform:scale(.95) translateX(-4%);border-radius:26px}
 <div id="velo-hoja" onclick="cerrarHoja()"></div>
 <div id="hoja"></div>
 <div id="toast"></div>
+<div id="progreso-subida"><span class="rueda"></span><span id="progreso-txt">Subiendo…</span></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script>
-/* ═══════════ DATOS DE PRUEBA
-   · LUGARES: id, nombre, región y coordenadas (lat, lng)
-   · GALERIAS: cada galería pertenece a un lugar (lugar:'id')
-     y cualquier foto puede sobreescribirlo con su propio lugar.
-   El mapa agrupa automáticamente TODAS las fotos de cada lugar,
-   vengan de la galería que vengan. Para tus fotos: cambia las
-   funciones P/V por tus URLs y edita estas listas.        ═══════════ */
-const P=(id,w=1200,h=900)=>`https://picsum.photos/id/${id}/${w}/${h}`;
-const V=(id,w=900,h=1200)=>`https://picsum.photos/id/${id}/${w}/${h}`;
+<!-- entradas de archivo ocultas -->
+<input type="file" id="input-fotos" accept="image/*" multiple hidden>
+<input type="file" id="input-original" accept="image/*" hidden>
+<input type="file" id="input-portada" accept="image/*" hidden>
 
-const LUGARES=[
-  {id:'benidorm', nombre:'Benidorm',  region:'Alicante, España', lat:38.5342, lng:-0.1314},
-  {id:'pirineos', nombre:'Pirineos',  region:'Huesca, España',   lat:42.6620, lng: 0.0300},
-  {id:'lisboa',   nombre:'Lisboa',    region:'Portugal',          lat:38.7223, lng:-9.1393},
-  {id:'marrakech',nombre:'Marrakech', region:'Marruecos',         lat:31.6295, lng:-7.9811},
-  {id:'patagonia',nombre:'Patagonia', region:'Argentina',         lat:-49.3315,lng:-72.8863},
-];
-
-const GALERIAS=[
-  {n:'Benidorm', anio:'2025', lugar:'benidorm', portada:1069, fotos:[
-    {id:1069,f:'IMG_0272.jpg',v:1,exif:'f/2.8 · 1/640 · ISO 100 · 35mm'},
-    {id:1043,f:'IMG_0268.jpg',v:1,exif:'f/4 · 1/250 · ISO 200 · 24mm'},
-    {id:164 ,f:'IMG_0553.jpg',v:1,exif:'f/5.6 · 1/320 · ISO 100 · 50mm'},
-    {id:1039,f:'IMG_0276.jpg',v:0,exif:'f/8 · 1/500 · ISO 100 · 24mm'},
-    {id:1015,f:'IMG_0275.jpg',v:0,exif:'f/7.1 · 1/400 · ISO 100 · 28mm'},
-  ]},
-  {n:'Cartucho', anio:'2025', lugar:'benidorm', portada:1025, fotos:[
-    {id:1025,f:'IMG_0590.jpg',v:1,exif:'f/1.8 · 1/1000 · ISO 100 · 85mm'},
-    {id:237 ,f:'IMG_0598.jpg',v:1,exif:'f/2 · 1/800 · ISO 125 · 85mm'},
-  ]},
-  {n:'Niebla temprana', anio:'2024', lugar:'pirineos', portada:1018, fotos:[
-    {id:1018,f:'IMG_0102.jpg',v:0,exif:'f/8 · 1/125 · ISO 100 · 24mm'},
-    {id:1036,f:'IMG_0107.jpg',v:0,exif:'f/11 · 1/60 · ISO 100 · 35mm'},
-    {id:1016,f:'IMG_0113.jpg',v:0,exif:'f/9 · 1/200 · ISO 100 · 24mm'},
-    {id:1043,f:'IMG_0121.jpg',v:1,exif:'f/4 · 1/250 · ISO 400 · 50mm'},
-  ]},
-  {n:'Gente que pasa', anio:'2023', lugar:'lisboa', portada:1011, fotos:[
-    {id:1011,f:'IMG_0334.jpg',v:0,exif:'f/2.8 · 1/500 · ISO 200 · 35mm'},
-    {id:1005,f:'IMG_0341.jpg',v:0,exif:'f/2 · 1/320 · ISO 100 · 50mm'},
-    {id:1012,f:'IMG_0349.jpg',v:0,exif:'f/2.8 · 1/250 · ISO 400 · 35mm'},
-    {id:64  ,f:'IMG_0357.jpg',v:1,exif:'f/1.8 · 1/640 · ISO 100 · 85mm',lugar:'marrakech'},
-  ]},
-  {n:'Zoco y polvo', anio:'2023', lugar:'marrakech', portada:1074, fotos:[
-    {id:1074,f:'IMG_0402.jpg',v:0,exif:'f/5.6 · 1/800 · ISO 100 · 35mm'},
-    {id:1080,f:'IMG_0411.jpg',v:0,exif:'f/8 · 1/640 · ISO 100 · 24mm'},
-    {id:338 ,f:'IMG_0419.jpg',v:1,exif:'f/2.8 · 1/500 · ISO 200 · 50mm'},
-  ]},
-  {n:'Última luz', anio:'2021', lugar:'patagonia', portada:1050, fotos:[
-    {id:1050,f:'IMG_0021.jpg',v:0,exif:'f/11 · 1/250 · ISO 100 · 24mm'},
-    {id:1057,f:'IMG_0027.jpg',v:0,exif:'f/9 · 1/320 · ISO 100 · 35mm'},
-    {id:1044,f:'IMG_0033.jpg',v:0,exif:'f/8 · 1/400 · ISO 100 · 24mm'},
-  ]},
-];
-
-/* ─── lógica: todas las fotos de cada lugar, vengan de donde vengan ─── */
-function lugarDe(id){return LUGARES.find(l=>l.id===id);}
-function fotosDeLugar(idLugar){
-  const res=[];
-  GALERIAS.forEach(g=>{
-    g.fotos.forEach(f=>{
-      if((f.lugar||g.lugar)===idLugar)res.push({...f,galeria:g.n});
-    });
-  });
-  return res;
-}
-function fotosDeGaleria(g){return g.fotos.map(f=>({...f,galeria:g.n}));}
-
-/* ═══════════ arranque ═══════════ */
-setTimeout(()=>document.getElementById('arranque').classList.add('disparo'),1200);
-setTimeout(()=>document.getElementById('arranque').classList.add('fuera'),1450);
-
-/* ═══════════ navegación raíz + menú ═══════════ */
-const raices={inicio:document.getElementById('p-inicio'),galerias:document.getElementById('p-galerias'),mapa:document.getElementById('p-mapa')};
-let raizActual='inicio';
-function irRaiz(nombre){
-  raices[raizActual].style.display='none';
-  raices[nombre].style.display='flex';
-  raizActual=nombre;
-  document.querySelectorAll('#menu nav button').forEach(b=>b.classList.toggle('activo',b.dataset.ir===nombre));
-  raices[nombre].querySelectorAll('.entra').forEach((el,i)=>{
-    el.style.animation='none';void el.offsetHeight;
-    el.style.animation='';el.style.animationDelay=(i*.06+.05)+'s';
-  });
-  if(nombre==='mapa')setTimeout(iniciarMapa,120);
-  cerrarMenu();
-}
-document.querySelectorAll('#menu nav button').forEach(b=>b.onclick=()=>irRaiz(b.dataset.ir));
-function abrirMenu(){document.getElementById('menu').classList.add('abierto');document.getElementById('velo-menu').classList.add('abierto');}
-function cerrarMenu(){document.getElementById('menu').classList.remove('abierto');document.getElementById('velo-menu').classList.remove('abierto');}
-function toast(m){
-  const t=document.getElementById('toast');
-  t.textContent=m;t.classList.add('visible');
-  clearTimeout(t._to);t._to=setTimeout(()=>t.classList.remove('visible'),2200);
-}
-
-/* ═══════════ inicio ═══════════ */
-const totalFotos=GALERIAS.reduce((a,g)=>a+g.fotos.length,0);
-document.getElementById('menu-num-gal').textContent=GALERIAS.length;
-document.getElementById('menu-num-lug').textContent=LUGARES.length;
-const hora=new Date().getHours();
-document.getElementById('saludo').textContent=(hora<12?'Buenos días':hora<20?'Buenas tardes':'Buenas noches')+', Aimar · '+new Date().toLocaleDateString('es',{day:'numeric',month:'long'});
-document.getElementById('cifras').innerHTML=`
-  <div class="c"><b>${GALERIAS.length}</b><span>Galerías</span></div>
-  <div class="c"><b>${totalFotos}</b><span>Fotos</span></div>
-  <div class="c"><b>${LUGARES.length}</b><span>Lugares</span></div>`;
-
-const recientes=document.getElementById('recientes');
-GALERIAS.forEach((g,i)=>{
-  const d=document.createElement('div');
-  d.className='tarjeta-mini';
-  d.innerHTML=`<div class="marco"><img loading="lazy" src="${V(g.portada,500,640)}" alt="${g.n}"><b>${g.n}</b></div>`;
-  d.onclick=()=>abrirGaleria(i);
-  recientes.appendChild(d);
-});
-const iniLug=document.getElementById('inicio-lugares');
-LUGARES.slice(0,3).forEach(l=>iniLug.appendChild(filaLugar(l)));
-
-function filaLugar(l){
-  const fotos=fotosDeLugar(l.id);
-  const d=document.createElement('div');
-  d.className='fila-lugar';
-  d.innerHTML=`<div class="marco"><img loading="lazy" src="${P(fotos[0].id,200,200)}" alt=""></div>
-    <div><b>${l.nombre}</b><span>${l.region} · ${fotos.length} fotos</span></div>
-    <svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>`;
-  d.onclick=()=>abrirLugar(l.id);
-  return d;
-}
-
-/* ═══════════ galerías (lista) ═══════════ */
-const listaG=document.getElementById('lista-galerias');
-GALERIAS.forEach((g,i)=>{
-  const l=lugarDe(g.lugar);
-  const d=document.createElement('div');
-  d.className='tarjeta-galeria entra';
-  d.style.animationDelay=(i*.09+.06)+'s';
-  d.innerHTML=`<img loading="lazy" src="${V(g.portada,900,1100)}" alt="${g.n}">
-    <span class="indice">${String(i+1).padStart(2,'0')} — ${String(GALERIAS.length).padStart(2,'0')}</span>
-    <div class="datos"><b>${g.n}</b><span>${g.fotos.length} fotos · ${l.nombre} · ${g.anio}</span></div>
-    <div class="puntos">···</div>`;
-  d.onclick=e=>{
-    if(e.target.closest('.puntos')){abrirHojaGaleria(i);return;}
-    abrirGaleria(i);
-  };
-  listaG.appendChild(d);
-});
-
-/* ═══════════ MAPA (Leaflet) ═══════════ */
-let mapa=null,marcadores={};
-function iniciarMapa(){
-  if(mapa){mapa.invalidateSize();return;}
-  if(typeof L==='undefined'){toast('El mapa no ha podido cargarse — revisa la conexión');return;}
-  mapa=L.map('mapa',{zoomControl:false,attributionControl:true});
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{
-    attribution:'© OpenStreetMap · © CARTO',maxZoom:19
-  }).addTo(mapa);
-
-  const limites=[];
-  LUGARES.forEach((l,i)=>{
-    const fotos=fotosDeLugar(l.id);
-    const icono=L.divIcon({
-      className:'',
-      html:`<div class="pin" id="pin-${l.id}" style="animation-delay:${i*.1+.2}s">
-              <div class="foto-pin"><img src="${P(fotos[0].id,160,160)}" alt=""></div>
-              <span class="cuenta">${fotos.length}</span>
-            </div>`,
-      iconSize:[52,52],iconAnchor:[26,26]
-    });
-    const m=L.marker([l.lat,l.lng],{icon:icono}).addTo(mapa);
-    m.on('click',()=>seleccionarLugar(l.id,true));
-    marcadores[l.id]=m;
-    limites.push([l.lat,l.lng]);
-  });
-  mapa.fitBounds(limites,{padding:[60,60]});
-  setTimeout(()=>mapa.invalidateSize(),300);
-}
-
-/* tarjetas de lugar sobre el mapa */
-const cartasCont=document.getElementById('mapa-cartas');
-LUGARES.forEach(l=>{
-  const fotos=fotosDeLugar(l.id);
-  const gals=[...new Set(fotos.map(f=>f.galeria))];
-  const d=document.createElement('div');
-  d.className='carta-lugar';
-  d.id='carta-'+l.id;
-  d.innerHTML=`<div class="marco"><img loading="lazy" src="${P(fotos[0].id,240,240)}" alt=""></div>
-    <div class="datos"><b>${l.nombre}</b><span>${fotos.length} fotos · ${gals.length} galería${gals.length>1?'s':''}</span></div>
-    <button class="ver">Ver</button>`;
-  d.querySelector('.ver').onclick=e=>{e.stopPropagation();abrirLugar(l.id);};
-  d.onclick=()=>seleccionarLugar(l.id);
-  cartasCont.appendChild(d);
-});
-function seleccionarLugar(id,desdePin=false){
-  document.querySelectorAll('.carta-lugar').forEach(c=>c.classList.toggle('viva',c.id==='carta-'+id));
-  document.querySelectorAll('.pin').forEach(p=>p.classList.toggle('activo',p.id==='pin-'+id));
-  const l=lugarDe(id);
-  if(mapa)mapa.flyTo([l.lat,l.lng],7,{duration:1.1});
-  document.getElementById('carta-'+id).scrollIntoView({behavior:'smooth',inline:'center',block:'nearest'});
-  if(desdePin)toast(`${l.nombre} — toca “Ver” para abrir sus ${fotosDeLugar(id).length} fotos`);
-}
-
-/* ═══════════ COLECCIÓN unificada (galería o lugar) ═══════════ */
-let coleccion=null;
-const pColec=document.getElementById('p-colec');
-
-function abrirGaleria(i){
-  const g=GALERIAS[i], l=lugarDe(g.lugar);
-  abrirColeccion({
-    titulo:g.n,
-    sub:`${l.nombre} · ${g.anio}`,
-    portada:V(g.portada,1000,1200),
-    fotos:fotosDeGaleria(g),
-    tipo:'Galería',
-    mostrarOrigen:false
-  });
-}
-function abrirLugar(id){
-  const l=lugarDe(id);
-  const fotos=fotosDeLugar(id);
-  const nGals=[...new Set(fotos.map(f=>f.galeria))].length;
-  abrirColeccion({
-    titulo:l.nombre,
-    sub:`${l.region} · ${fotos.length} fotos de ${nGals} galería${nGals>1?'s':''}`,
-    portada:P(fotos[0].id,1200,1000),
-    fotos,
-    tipo:'Lugar',
-    mostrarOrigen:true
-  });
-}
-function abrirColeccion(c){
-  coleccion=c;
-  document.getElementById('col-cover').src=c.portada;
-  document.getElementById('col-nombre').textContent=c.titulo;
-  document.getElementById('col-sub').textContent=c.sub;
-  document.getElementById('col-titulo-mini').textContent=c.titulo;
-  document.getElementById('col-n').textContent=c.fotos.length;
-  const grid=document.getElementById('col-grid');
-  grid.innerHTML='';
-  c.fotos.forEach((f,j)=>{
-    const cel=document.createElement('div');
-    cel.className='celda';
-    cel.style.animationDelay=(j*.05+.15)+'s';
-    cel.innerHTML=`<img loading="lazy" src="${f.v?V(f.id,600,800):P(f.id,600,450)}" alt="${f.f}" style="aspect-ratio:${f.v?'3/4':'4/3'}">
-      ${c.mostrarOrigen?`<span class="de">${f.galeria}</span>`:''}`;
-    cel.onclick=()=>abrirFoto(j);
-    grid.appendChild(cel);
-  });
-  document.getElementById('col-scroll').scrollTop=0;
-  document.getElementById('col-topbar').classList.remove('solida');
-  pColec.classList.add('abierta');
-  document.body.classList.add('empujada');
-}
-function volverDeColec(){
-  pColec.classList.remove('abierta');
-  document.body.classList.remove('empujada');
-}
-const colScroll=document.getElementById('col-scroll');
-colScroll.addEventListener('scroll',()=>{
-  const y=colScroll.scrollTop;
-  document.getElementById('col-topbar').classList.toggle('solida',y>140);
-  document.getElementById('col-cover').style.transform=`translateY(${y*.35}px)`;
-},{passive:true});
-
-function abrirHojaGaleria(i){
-  const g=GALERIAS[i], l=lugarDe(g.lugar);
-  hoja(`
-    <div class="grupo">
-      <div class="cab-hoja"><b>${g.n}</b><span>${g.fotos.length} fotos · ${l.nombre} · ${g.anio}</span></div>
-      <button class="opcion" onclick="cerrarHoja();abrirGaleria(${i})">Abrir galería</button>
-      <button class="opcion" onclick="cerrarHoja();abrirLugar('${g.lugar}')">Ver todo lo de ${l.nombre}</button>
-      <button class="opcion" onclick="cerrarHoja();toast('Compartir está desactivado en modo exposición')">Compartir enlace</button>
-    </div>
-    <button class="cancelar" onclick="cerrarHoja()">Cancelar</button>`);
-}
-function abrirHojaColec(){
-  hoja(`
-    <div class="grupo">
-      <div class="cab-hoja"><b>${coleccion.titulo}</b><span>${coleccion.sub}</span></div>
-      <div class="dato">Tipo <span>${coleccion.tipo}</span></div>
-      <div class="dato">Fotografías <span>${coleccion.fotos.length}</span></div>
-      <button class="opcion" onclick="cerrarHoja();toast('Compartir está desactivado en modo exposición')">Compartir enlace</button>
-    </div>
-    <button class="cancelar" onclick="cerrarHoja()">Cerrar</button>`);
-}
-
-/* ═══════════ visor ═══════════ */
-const pFoto=document.getElementById('p-foto');
-const carro=document.getElementById('foto-carro');
-const tira=document.getElementById('tira');
-let fotoIdx=0,slides=[],pulgs=[],cmpActivo=false;
-
-function abrirFoto(j){
-  fotoIdx=j;
-  carro.innerHTML='';tira.innerHTML='';
-  coleccion.fotos.forEach((f,k)=>{
-    const src=f.v?V(f.id,1000,1400):P(f.id,1400,1000);
-    const s=document.createElement('div');
-    s.className='foto-slide';
-    s.innerHTML=`<img class="eco" src="${P(f.id,120,90)}" alt="">
-      <div class="marco"><img src="${src}" alt="${f.f}"></div>`;
-    carro.appendChild(s);
-    const t=document.createElement('button');
-    t.className='pulg';
-    t.innerHTML=`<img loading="lazy" src="${P(f.id,160,160)}" alt="">`;
-    t.onclick=()=>{quitarComparador();irAFoto(k);};
-    tira.appendChild(t);
-  });
-  slides=[...carro.children];
-  pulgs=[...tira.children];
-  irAFoto(j,true);
-  pFoto.classList.add('abierta');
-  document.body.classList.add('nivel2');
-}
-function volverDeFoto(){
-  quitarComparador();
-  pFoto.classList.remove('abierta');
-  document.body.classList.remove('nivel2');
-}
-function irAFoto(k,inmediato=false){
-  fotoIdx=k;
-  if(inmediato)carro.style.transition='none';
-  carro.style.transform=`translateX(${-k*100}%)`;
-  if(inmediato)requestAnimationFrame(()=>carro.style.transition='');
-  const f=coleccion.fotos[k];
-  document.getElementById('foto-archivo').textContent=f.f;
-  document.getElementById('foto-num').textContent=`${k+1} de ${coleccion.fotos.length} · ${coleccion.titulo}`;
-  pulgs.forEach((p,x)=>p.classList.toggle('viva',x===k));
-  pulgs[k].scrollIntoView({behavior:inmediato?'auto':'smooth',inline:'center',block:'nearest'});
-}
-
-let sx=null,sy=null;
-const zona=document.getElementById('foto-zona');
-zona.addEventListener('touchstart',e=>{sx=e.touches[0].clientX;sy=e.touches[0].clientY;},{passive:true});
-zona.addEventListener('touchend',e=>{
-  if(sx===null||cmpActivo)return;
-  const dx=e.changedTouches[0].clientX-sx, dy=e.changedTouches[0].clientY-sy;
-  if(Math.abs(dx)>50&&Math.abs(dx)>Math.abs(dy)){
-    const n=fotoIdx+(dx<0?1:-1);
-    if(n>=0&&n<slides.length)irAFoto(n);
-  }
-  sx=sy=null;
-},{passive:true});
-
-let pulsoTimer=null;
-zona.addEventListener('touchstart',()=>{
-  if(cmpActivo)return;
-  pulsoTimer=setTimeout(()=>{
-    slides[fotoIdx].querySelector('.marco > img').classList.add('filtro-raw');
-    document.getElementById('peek').classList.add('visible');
-  },260);
-},{passive:true});
-['touchend','touchmove','touchcancel'].forEach(ev=>zona.addEventListener(ev,()=>{
-  clearTimeout(pulsoTimer);
-  slides.forEach(s=>s.querySelector('.marco > img').classList.remove('filtro-raw'));
-  document.getElementById('peek').classList.remove('visible');
-},{passive:true}));
-
-/* comparador antes/después */
-function alternarComparador(){cmpActivo?quitarComparador():ponerComparador();}
-function ponerComparador(){
-  cmpActivo=true;
-  document.getElementById('btn-cmp').classList.add('activo');
-  const marco=slides[fotoIdx].querySelector('.marco');
-  const f=coleccion.fotos[fotoIdx];
-  const src=f.v?V(f.id,1000,1400):P(f.id,1400,1000);
-  marco.querySelector('img').classList.add('filtro-raw');
-  marco.insertAdjacentHTML('beforeend',`
-    <div class="cmp-capa" style="--pos:50%"><img src="${src}" alt=""></div>
-    <div class="cmp-div" style="--pos:50%"><div class="asa">⟨⟩</div></div>
-    <span class="cmp-tag a">Antes</span><span class="cmp-tag b">Después</span>`);
-  const capa=marco.querySelector('.cmp-capa'), divi=marco.querySelector('.cmp-div');
-  let arr=false;
-  const mover=x=>{
-    const r=marco.getBoundingClientRect();
-    const pos=Math.min(96,Math.max(4,(x-r.left)/r.width*100))+'%';
-    capa.style.setProperty('--pos',pos);divi.style.setProperty('--pos',pos);
-  };
-  marco.onpointerdown=e=>{arr=true;marco.setPointerCapture(e.pointerId);mover(e.clientX);};
-  marco.onpointermove=e=>{if(arr)mover(e.clientX);};
-  marco.onpointerup=marco.onpointercancel=()=>arr=false;
-  toast('Arrastra el divisor para comparar');
-}
-function quitarComparador(){
-  if(!cmpActivo)return;
-  cmpActivo=false;
-  document.getElementById('btn-cmp').classList.remove('activo');
-  slides.forEach(s=>{
-    const m=s.querySelector('.marco');
-    m.querySelectorAll('.cmp-capa,.cmp-div,.cmp-tag').forEach(x=>x.remove());
-    m.querySelector('img').classList.remove('filtro-raw');
-    m.onpointerdown=m.onpointermove=m.onpointerup=null;
-  });
-}
-
-/* info EXIF */
-function abrirHojaInfo(){
-  const f=coleccion.fotos[fotoIdx];
-  hoja(`
-    <div class="grupo">
-      <div class="cab-hoja"><b>${f.f}</b><span>${coleccion.tipo}: ${coleccion.titulo} · Galería ${f.galeria}</span></div>
-      <div class="dato">Ajustes <span>${f.exif}</span></div>
-      <div class="dato">Cámara <span>Fujifilm X-T5</span></div>
-      <div class="dato">Formato <span>RAW + JPEG · 3:2</span></div>
-      <div class="dato">Edición <span>Lightroom · perfil propio</span></div>
-    </div>
-    <button class="cancelar" onclick="cerrarHoja()">Cerrar</button>`);
-}
-function hoja(html){
-  document.getElementById('hoja').innerHTML=html;
-  document.getElementById('hoja').classList.add('abierta');
-  document.getElementById('velo-hoja').classList.add('abierto');
-}
-function cerrarHoja(){
-  document.getElementById('hoja').classList.remove('abierta');
-  document.getElementById('velo-hoja').classList.remove('abierto');
-}
-</script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/datos.js"></script>
+<script src="js/app.js"></script>
+<script src="js/admin.js"></script>
 </body>
 </html>
