@@ -54,7 +54,7 @@ function formLugar(lid){
   const l=lid?lugarDe(lid):{nombre:'',region:'',lat:'',lng:''};
   hoja(`
     <div class="grupo">
-      <div class="cab-hoja"><b>${lid?'Editar lugar':'Nuevo lugar'}</b><span>Puedes escribir coordenadas o fijarlas tocando el mapa</span></div>
+      <div class="cab-hoja"><b>${lid?'Editar lugar':'Nuevo lugar'}</b><span>También puedes cerrar esto y tocar el mapa directamente</span></div>
       <div class="campo"><label>Nombre</label><input id="in-lug-nombre" value="${l.nombre||''}" placeholder="Benidorm"></div>
       <div class="campo"><label>Región / país</label><input id="in-lug-region" value="${l.region||''}" placeholder="Alicante, España"></div>
       <div class="campo"><label>Coordenadas (lat, lng)</label>
@@ -64,25 +64,32 @@ function formLugar(lid){
         </div>
       </div>
       <button class="principal" onclick="guardarLugar('${lid||''}')">Guardar lugar</button>
-      <button class="principal" style="background:var(--fondo2);color:var(--tinta)" onclick="fijarEnMapa('${lid||''}')">Fijar tocando el mapa</button>
-      <p class="nota-form">Consejo: busca el sitio en Google Maps, mantén pulsado y copia las coordenadas.</p>
+      <p class="nota-form">Consejo: busca el sitio en Google Maps, mantén pulsado sobre el punto y copia las coordenadas que aparecen (usa punto decimal, no coma).</p>
     </div>
     <button class="cancelar" onclick="cerrarHoja()">Cancelar</button>`);
 }
 async function guardarLugar(lid){
   if(!requiereAdmin())return;
-  const fila={
-    nombre:$('in-lug-nombre').value.trim(),
-    region:$('in-lug-region').value.trim(),
-    lat:parseFloat($('in-lug-lat').value)||null,
-    lng:parseFloat($('in-lug-lng').value)||null,
-  };
-  if(!fila.nombre){toast('El lugar necesita un nombre');return;}
+  const nombre=$('in-lug-nombre').value.trim();
+  const region=$('in-lug-region').value.trim();
+  const latTxt=$('in-lug-lat').value.trim().replace(',','.');
+  const lngTxt=$('in-lug-lng').value.trim().replace(',','.');
+  const lat=latTxt?parseFloat(latTxt):null;
+  const lng=lngTxt?parseFloat(lngTxt):null;
+  if(!nombre){toast('El lugar necesita un nombre');return;}
+  if((latTxt&&isNaN(lat))||(lngTxt&&isNaN(lng))){
+    toast('Revisa el formato de las coordenadas — usa punto decimal, ej. 38.5342',4000);
+    return;
+  }
+  const fila={nombre,region,lat,lng};
   cerrarHoja();subiendo('Guardando lugar…');
-  if(lid)await dbUpdate('lugares',lid,fila);
-  else await dbInsert('lugares',fila);
-  await cargarDatos();renderTodo();subidaLista();
-  toast('Lugar guardado');
+  let ok;
+  if(lid)ok=await dbUpdate('lugares',lid,fila);
+  else ok=await dbInsert('lugares',fila);
+  subidaLista();
+  if(!ok)return; /* el error concreto ya se mostró en toast */
+  await cargarDatos();renderTodo();
+  toast(lat!=null&&lng!=null?'Lugar guardado y ubicado en el mapa':'Lugar guardado — sin coordenadas, no aparecerá en el mapa hasta que se las añadas');
 }
 function fijarEnMapa(lid){
   lugarPendiente={
@@ -100,30 +107,44 @@ function reubicarLugar(lid){
   irRaiz('mapa');
   document.body.classList.add('fijando');
 }
-async function clickMapaAdmin(e){
-  if(!lugarPendiente||!SESION)return;
-  const {lat,lng}=e.latlng;
+function cancelarFijado(){
+  lugarPendiente=null;
   document.body.classList.remove('fijando');
-  const p=lugarPendiente;lugarPendiente=null;
-  if(!p.nombre){
-    /* pedir nombre tras fijar el punto */
-    hoja(`
-      <div class="grupo">
-        <div class="cab-hoja"><b>Nuevo lugar</b><span>${lat.toFixed(4)}, ${lng.toFixed(4)}</span></div>
-        <div class="campo"><label>Nombre</label><input id="in-lug-nombre" placeholder="Nombre del lugar"></div>
-        <div class="campo"><label>Región / país</label><input id="in-lug-region" placeholder="Región, País"></div>
-        <input type="hidden" id="in-lug-lat" value="${lat}"><input type="hidden" id="in-lug-lng" value="${lng}">
-        <button class="principal" onclick="guardarLugar('')">Guardar lugar</button>
-      </div>
-      <button class="cancelar" onclick="cerrarHoja()">Cancelar</button>`);
+  toast('Cancelado');
+}
+async function clickMapaAdmin(e){
+  if(!SESION)return; /* los visitantes no pueden crear lugares */
+  const {lat,lng}=e.latlng;
+
+  /* modo "reposicionar" armado desde el formulario de editar/crear lugar */
+  if(lugarPendiente){
+    document.body.classList.remove('fijando');
+    const p=lugarPendiente;lugarPendiente=null;
+    subiendo('Guardando ubicación…');
+    let ok;
+    if(p.id){
+      ok=await dbUpdate('lugares',p.id,{lat,lng});
+    }else{
+      ok=await dbInsert('lugares',{nombre:p.nombre||'Nuevo lugar',region:p.region||'',lat,lng});
+    }
+    subidaLista();
+    if(!ok)return; /* el error ya se mostró */
+    await cargarDatos();renderTodo();
+    toast(`Ubicación guardada: ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
     return;
   }
-  subiendo('Guardando ubicación…');
-  const fila={nombre:p.nombre,region:p.region,lat,lng};
-  if(p.id)await dbUpdate('lugares',p.id,fila);
-  else await dbInsert('lugares',fila);
-  await cargarDatos();renderTodo();subidaLista();
-  toast(`Ubicación fijada: ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+
+  /* modo simple: CUALQUIER toque en el mapa, sin pasos previos, ofrece crear un lugar ahí */
+  hoja(`
+    <div class="grupo">
+      <div class="cab-hoja"><b>Nuevo lugar aquí</b><span>${lat.toFixed(4)}, ${lng.toFixed(4)}</span></div>
+      <div class="campo"><label>Nombre</label><input id="in-lug-nombre" placeholder="Nombre del lugar"></div>
+      <div class="campo"><label>Región / país (opcional)</label><input id="in-lug-region" placeholder="Región, país"></div>
+      <input type="hidden" id="in-lug-lat" value="${lat}">
+      <input type="hidden" id="in-lug-lng" value="${lng}">
+      <button class="principal" onclick="guardarLugar('')">Guardar lugar</button>
+    </div>
+    <button class="cancelar" onclick="cerrarHoja()">Cancelar</button>`);
 }
 async function eliminarLugar(lid){
   if(!requiereAdmin())return;

@@ -98,17 +98,17 @@ function requiereAdmin() {
 }
 async function dbInsert(tabla, fila) {
   const { data, error } = await sb.from(tabla).insert(fila).select().single();
-  if (error) { console.error(error); toast("Error al guardar: " + error.message); return null; }
+  if (error) { console.error(error); toast("Error al guardar: " + error.message, 4500); return null; }
   return data;
 }
 async function dbUpdate(tabla, id, cambios) {
   const { error } = await sb.from(tabla).update(cambios).eq("id", id);
-  if (error) { console.error(error); toast("Error al actualizar: " + error.message); return false; }
+  if (error) { console.error(error); toast("Error al actualizar: " + error.message, 4500); return false; }
   return true;
 }
 async function dbDelete(tabla, id) {
   const { error } = await sb.from(tabla).delete().eq("id", id);
-  if (error) { console.error(error); toast("Error al eliminar: " + error.message); return false; }
+  if (error) { console.error(error); toast("Error al eliminar: " + error.message, 4500); return false; }
   return true;
 }
 async function subirArchivo(file, carpeta) {

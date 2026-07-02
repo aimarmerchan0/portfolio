@@ -2,9 +2,9 @@
 
 /* ── utilidades ── */
 const $ = id => document.getElementById(id);
-function toast(m){
+function toast(m,duracion=2400){
   const t=$('toast');t.textContent=m;t.classList.add('visible');
-  clearTimeout(t._to);t._to=setTimeout(()=>t.classList.remove('visible'),2400);
+  clearTimeout(t._to);t._to=setTimeout(()=>t.classList.remove('visible'),duracion);
 }
 function hoja(html){$('hoja').innerHTML=html;$('hoja').classList.add('abierta');$('velo-hoja').classList.add('abierto');}
 function cerrarHoja(){$('hoja').classList.remove('abierta');$('velo-hoja').classList.remove('abierto');}
@@ -110,18 +110,26 @@ function renderGalerias(){
 }
 
 /* ── MAPA ── */
-let mapa=null,capaMarcadores=null;
+let mapa=null,capaMarcadores=null,intentosMapa=0;
 function iniciarMapa(){
   if(mapa){mapa.invalidateSize();return;}
-  if(typeof L==='undefined'){toast('El mapa no ha podido cargarse');return;}
-  mapa=L.map('mapa',{zoomControl:false,attributionControl:true});
+  if(typeof L==='undefined'){
+    intentosMapa++;
+    if(intentosMapa<=6){setTimeout(iniciarMapa,400);return;}
+    toast('El mapa no ha podido cargarse — comprueba tu conexión y recarga la página',4500);
+    return;
+  }
+  mapa=L.map('mapa',{zoomControl:false,attributionControl:true,tap:true});
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{
-    attribution:'© OpenStreetMap · © CARTO',maxZoom:19
+    attribution:'© OpenStreetMap · © CARTO',maxZoom:19,detectRetina:true
   }).addTo(mapa);
   capaMarcadores=L.layerGroup().addTo(mapa);
   mapa.on('click',e=>{ if(typeof clickMapaAdmin==='function')clickMapaAdmin(e); });
   renderMarcadores(true);
-  setTimeout(()=>mapa.invalidateSize(),300);
+  /* iOS necesita varios recálculos de tamaño tras animaciones y cambios de orientación */
+  [0,250,600,1200].forEach(ms=>setTimeout(()=>mapa&&mapa.invalidateSize(),ms));
+  window.addEventListener('resize',()=>mapa&&mapa.invalidateSize());
+  window.addEventListener('orientationchange',()=>setTimeout(()=>mapa&&mapa.invalidateSize(),300));
 }
 function renderMarcadores(encuadrar=false){
   if(!mapa)return;
@@ -414,7 +422,13 @@ function fabGalerias(){
 }
 function fabMapa(){
   if(!SESION){toast('Modo exposición — inicia sesión para añadir lugares');return;}
-  formLugar(null);
+  hoja(`
+    <div class="grupo">
+      <div class="cab-hoja"><b>Añadir lugar</b><span>Elige cómo quieres crearlo</span></div>
+      <button class="opcion" onclick="cerrarHoja();toast('Toca cualquier punto del mapa para crear ahí un lugar',3200)">Tocar el mapa (recomendado)</button>
+      <button class="opcion" onclick="cerrarHoja();formLugar(null)">Escribir coordenadas a mano</button>
+    </div>
+    <button class="cancelar" onclick="cerrarHoja()">Cancelar</button>`);
 }
 
 /* ═══ arranque de datos ═══ */
