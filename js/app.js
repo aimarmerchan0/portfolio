@@ -111,63 +111,92 @@ function renderGalerias(){
 
 /* ── MAPA ── */
 let mapa=null,capaMarcadores=null,intentosMapa=0;
+function fallbackMapa(txt){
+  const f=$('mapa-fallback');
+  if(txt){ $('mapa-fallback-txt').textContent=txt; f.classList.add('visible'); }
+  else f.classList.remove('visible');
+}
 function iniciarMapa(){
   if(mapa){mapa.invalidateSize();return;}
   if(typeof L==='undefined'){
     intentosMapa++;
-    if(intentosMapa<=6){setTimeout(iniciarMapa,400);return;}
-    toast('El mapa no ha podido cargarse — comprueba tu conexión y recarga la página',4500);
+    if(intentosMapa<=8){setTimeout(iniciarMapa,400);return;}
+    fallbackMapa('La librería del mapa (Leaflet) no ha podido cargarse. Revisa tu conexión a internet y recarga.');
     return;
   }
-  mapa=L.map('mapa',{zoomControl:false,attributionControl:true,tap:true});
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{
-    attribution:'© OpenStreetMap · © CARTO',maxZoom:19,detectRetina:true
-  }).addTo(mapa);
-  capaMarcadores=L.layerGroup().addTo(mapa);
-  mapa.on('click',e=>{ if(typeof clickMapaAdmin==='function')clickMapaAdmin(e); });
-  renderMarcadores(true);
-  /* iOS necesita varios recálculos de tamaño tras animaciones y cambios de orientación */
-  [0,250,600,1200].forEach(ms=>setTimeout(()=>mapa&&mapa.invalidateSize(),ms));
-  window.addEventListener('resize',()=>mapa&&mapa.invalidateSize());
-  window.addEventListener('orientationchange',()=>setTimeout(()=>mapa&&mapa.invalidateSize(),300));
+  const cont=$('mapa-zona');
+  const r=cont.getBoundingClientRect();
+  if(r.height<40){
+    /* el contenedor aún no tiene alto real: reintenta antes de rendirte */
+    intentosMapa++;
+    if(intentosMapa<=8){setTimeout(iniciarMapa,300);return;}
+    fallbackMapa('El contenedor del mapa no tiene tamaño ('+Math.round(r.width)+'×'+Math.round(r.height)+'px). Es probable que css/estilos.css no se haya subido completo a GitHub — revisa que el archivo no esté cortado.');
+    return;
+  }
+  try{
+    mapa=L.map('mapa',{zoomControl:false,attributionControl:true,tap:true});
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{
+      attribution:'© OpenStreetMap · © CARTO',maxZoom:19,detectRetina:true
+    }).addTo(mapa);
+    capaMarcadores=L.layerGroup().addTo(mapa);
+    mapa.on('click',e=>{ if(typeof clickMapaAdmin==='function')clickMapaAdmin(e); });
+    renderMarcadores(true);
+    fallbackMapa(null);
+    [0,250,600,1200].forEach(ms=>setTimeout(()=>mapa&&mapa.invalidateSize(),ms));
+    window.addEventListener('resize',()=>mapa&&mapa.invalidateSize());
+    window.addEventListener('orientationchange',()=>setTimeout(()=>mapa&&mapa.invalidateSize(),300));
+  }catch(err){
+    console.error(err);
+    fallbackMapa('Error al crear el mapa: '+err.message);
+  }
 }
 function renderMarcadores(encuadrar=false){
   if(!mapa)return;
-  capaMarcadores.clearLayers();
-  const limites=[];
-  DATOS.lugares.forEach((l,i)=>{
-    if(l.lat==null||l.lng==null)return;
-    const fotos=fotosDeLugar(l.id);
-    const icono=L.divIcon({
-      className:'',
-      html:`<div class="pin" id="pin-${l.id}" style="animation-delay:${i*.09+.15}s">
-              <div class="foto-pin">${fotos[0]?`<img src="${miniDe(fotos[0])}" alt="">`:''}</div>
-              <span class="cuenta">${fotos.length}</span>
-            </div>`,
-      iconSize:[52,52],iconAnchor:[26,26]
+  try{
+    capaMarcadores.clearLayers();
+    const limites=[];
+    DATOS.lugares.forEach((l,i)=>{
+      if(l.lat==null||l.lng==null)return;
+      const fotos=fotosDeLugar(l.id);
+      const icono=L.divIcon({
+        className:'',
+        html:`<div class="pin" id="pin-${l.id}" style="animation-delay:${i*.09+.15}s">
+                <div class="foto-pin">${fotos[0]?`<img src="${miniDe(fotos[0])}" alt="">`:''}</div>
+                <span class="cuenta">${fotos.length}</span>
+              </div>`,
+        iconSize:[52,52],iconAnchor:[26,26]
+      });
+      const m=L.marker([l.lat,l.lng],{icon:icono}).addTo(capaMarcadores);
+      m.on('click',()=>seleccionarLugar(l.id,true));
+      limites.push([l.lat,l.lng]);
     });
-    const m=L.marker([l.lat,l.lng],{icon:icono}).addTo(capaMarcadores);
-    m.on('click',()=>seleccionarLugar(l.id,true));
-    limites.push([l.lat,l.lng]);
-  });
-  if(encuadrar&&limites.length)mapa.fitBounds(limites,{padding:[60,60],maxZoom:8});
+    if(encuadrar&&limites.length)mapa.fitBounds(limites,{padding:[60,60],maxZoom:8});
+  }catch(err){
+    console.error(err);
+    toast('Error al pintar los marcadores: '+err.message,4500);
+  }
 }
 function renderMapaCartas(){
-  const cont=$('mapa-cartas');cont.innerHTML='';
-  DATOS.lugares.forEach(l=>{
-    const fotos=fotosDeLugar(l.id);
-    const gals=[...new Set(fotos.map(f=>f.galeria))].filter(Boolean);
-    const d=document.createElement('div');
-    d.className='carta-lugar';
-    d.id='carta-'+l.id;
-    d.innerHTML=`<div class="marco">${fotos[0]?`<img loading="lazy" src="${miniDe(fotos[0])}" alt="">`:''}</div>
-      <div class="datos"><b>${l.nombre}</b><span>${fotos.length} fotos${gals.length?' · '+gals.length+' galería'+(gals.length>1?'s':''):''}</span></div>
-      <button class="ver">Ver</button>`;
-    d.querySelector('.ver').onclick=e=>{e.stopPropagation();abrirLugar(l.id);};
-    d.onclick=()=>seleccionarLugar(l.id);
-    d.oncontextmenu=e=>{e.preventDefault();};
-    cont.appendChild(d);
-  });
+  try{
+    const cont=$('mapa-cartas');cont.innerHTML='';
+    DATOS.lugares.forEach(l=>{
+      const fotos=fotosDeLugar(l.id);
+      const gals=[...new Set(fotos.map(f=>f.galeria))].filter(Boolean);
+      const d=document.createElement('div');
+      d.className='carta-lugar';
+      d.id='carta-'+l.id;
+      d.innerHTML=`<div class="marco">${fotos[0]?`<img loading="lazy" src="${miniDe(fotos[0])}" alt="">`:''}</div>
+        <div class="datos"><b>${l.nombre}</b><span>${fotos.length} fotos${gals.length?' · '+gals.length+' galería'+(gals.length>1?'s':''):''}</span></div>
+        <button class="ver">Ver</button>`;
+      d.querySelector('.ver').onclick=e=>{e.stopPropagation();abrirLugar(l.id);};
+      d.onclick=()=>seleccionarLugar(l.id);
+      d.oncontextmenu=e=>{e.preventDefault();};
+      cont.appendChild(d);
+    });
+  }catch(err){
+    console.error(err);
+    toast('Error al listar lugares: '+err.message,4500);
+  }
 }
 function seleccionarLugar(id,desdePin=false){
   document.querySelectorAll('.carta-lugar').forEach(c=>c.classList.toggle('viva',c.id==='carta-'+id));
@@ -433,6 +462,12 @@ function fabMapa(){
 
 /* ═══ arranque de datos ═══ */
 (async()=>{
-  await cargarDatos();
-  renderTodo();
+  try{
+    await cargarDatos();
+    renderTodo();
+  }catch(err){
+    console.error(err);
+    document.dispatchEvent(new Event('DOMContentLoaded')); /* asegura que el diagnóstico se pinte */
+    toast('Error cargando la app: '+err.message,6000);
+  }
 })();
