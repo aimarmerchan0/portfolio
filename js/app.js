@@ -110,7 +110,7 @@ function renderGalerias(){
 }
 
 /* ── MAPA ── */
-let mapa=null,capaMarcadores=null,intentosMapa=0;
+let mapa=null,capaMarcadores=null,intentosMapa=0,tilesFallidos=0,tilesOk=0;
 function fallbackMapa(txt){
   const f=$('mapa-fallback');
   if(txt){ $('mapa-fallback-txt').textContent=txt; f.classList.add('visible'); }
@@ -127,24 +127,36 @@ function iniciarMapa(){
   const cont=$('mapa-zona');
   const r=cont.getBoundingClientRect();
   if(r.height<40){
-    /* el contenedor aún no tiene alto real: reintenta antes de rendirte */
     intentosMapa++;
     if(intentosMapa<=8){setTimeout(iniciarMapa,300);return;}
-    fallbackMapa('El contenedor del mapa no tiene tamaño ('+Math.round(r.width)+'×'+Math.round(r.height)+'px). Es probable que css/estilos.css no se haya subido completo a GitHub — revisa que el archivo no esté cortado.');
+    fallbackMapa('El contenedor del mapa no tiene tamaño ('+Math.round(r.width)+'×'+Math.round(r.height)+'px). Es probable que css/estilos.css no se haya subido completo a GitHub.');
     return;
   }
   try{
     mapa=L.map('mapa',{zoomControl:false,attributionControl:true,tap:true});
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{
-      attribution:'© OpenStreetMap · © CARTO',maxZoom:19,detectRetina:true
+    const capaTiles=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      attribution:'© OpenStreetMap',maxZoom:19,subdomains:'abc'
     }).addTo(mapa);
+    capaTiles.on('tileerror',()=>{
+      tilesFallidos++;
+      if(tilesFallidos===1)console.warn('Fallo cargando un tile del mapa');
+      if(tilesFallidos>=6 && tilesOk===0){
+        fallbackMapa('Las imágenes del mapa (OpenStreetMap) no se están cargando en esta red. Prueba con otra red / sin VPN, o recarga.');
+      }
+    });
+    capaTiles.on('tileload',()=>{ tilesOk++; if(tilesOk===1)fallbackMapa(null); });
     capaMarcadores=L.layerGroup().addTo(mapa);
     mapa.on('click',e=>{ if(typeof clickMapaAdmin==='function')clickMapaAdmin(e); });
     renderMarcadores(true);
-    fallbackMapa(null);
     [0,250,600,1200].forEach(ms=>setTimeout(()=>mapa&&mapa.invalidateSize(),ms));
     window.addEventListener('resize',()=>mapa&&mapa.invalidateSize());
     window.addEventListener('orientationchange',()=>setTimeout(()=>mapa&&mapa.invalidateSize(),300));
+    /* si en 5s no hay lugares con coordenadas ni error de tiles, avisa igualmente */
+    setTimeout(()=>{
+      if(tilesOk===0&&tilesFallidos===0){
+        fallbackMapa('El mapa lleva varios segundos sin recibir respuesta de OpenStreetMap. Puede ser tu red. Toca "Recargar".');
+      }
+    },5000);
   }catch(err){
     console.error(err);
     fallbackMapa('Error al crear el mapa: '+err.message);
@@ -179,6 +191,12 @@ function renderMarcadores(encuadrar=false){
 function renderMapaCartas(){
   try{
     const cont=$('mapa-cartas');cont.innerHTML='';
+    if(!DATOS.lugares.length){
+      cont.innerHTML=`<div class="carta-lugar" style="justify-content:center;text-align:center">
+        <div class="datos"><b>Aún no hay lugares</b><span>${SESION?'Toca el mapa para crear el primero':'El fotógrafo aún no ha añadido lugares'}</span></div>
+      </div>`;
+      return;
+    }
     DATOS.lugares.forEach(l=>{
       const fotos=fotosDeLugar(l.id);
       const gals=[...new Set(fotos.map(f=>f.galeria))].filter(Boolean);
