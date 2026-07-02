@@ -15,23 +15,34 @@
     if(!el){
       el=document.createElement('div');
       el.id='_diag';
-      el.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;background:#c0392b;color:#fff;font:12px/1.5 -apple-system,sans-serif;padding:12px 16px;max-height:44vh;overflow:auto;white-space:pre-wrap;box-shadow:0 4px 18px rgba(0,0,0,.4)';
+      el.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;background:#c0392b;color:#fff;font:12px/1.5 -apple-system,sans-serif;padding:12px 44px 12px 16px;max-height:44vh;overflow:auto;white-space:pre-wrap;box-shadow:0 4px 18px rgba(0,0,0,.4)';
+      var cerrar=document.createElement('button');
+      cerrar.textContent='✕';
+      cerrar.setAttribute('aria-label','Cerrar');
+      cerrar.style.cssText='position:fixed;top:8px;right:10px;z-index:100000;width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.25);color:#fff;border:none;font-size:15px;line-height:30px;padding:0';
+      cerrar.onclick=function(){ el.style.display='none'; cerrar.style.display='none'; };
+      (document.body||document.documentElement).appendChild(cerrar);
       (document.body||document.documentElement).appendChild(el);
     }
-    el.textContent='⚠️ '+errores.length+' error(es) — haz captura de pantalla de esto:\n\n'+errores.join('\n\n');
+    el.textContent='⚠️ '+errores.length+' error(es) — toca la ✕ para cerrar, o haz captura:\n\n'+errores.join('\n\n');
   }
   window.addEventListener('error',function(e){
     var msg;
-    if(e.message)msg=e.message+'  ['+String(e.filename||'?').split('/').pop()+':'+e.lineno+']';
-    else if(e.target&&(e.target.src||e.target.href))msg='No se pudo cargar: '+(e.target.src||e.target.href);
-    else msg='Error desconocido';
+    if(e.target&&e.target.tagName&&(e.target.src||e.target.href)){
+      msg='No se pudo cargar ('+e.target.tagName+'): '+(e.target.src||e.target.href);
+    }else if(e.message&&e.message!=='Script error.'){
+      msg=e.message+'  ['+String(e.filename||'?').split('/').pop()+':'+e.lineno+']';
+    }else if(e.message==='Script error.'){
+      msg='Error dentro de una librería externa (detalle oculto por el navegador)';
+    }else{
+      return; /* evento sin información útil: se ignora */
+    }
     errores.push(msg);pintar();
   },true);
   window.addEventListener('unhandledrejection',function(e){
     errores.push('Promesa rechazada: '+(e.reason&&(e.reason.message||e.reason)||'desconocido'));
     pintar();
   });
-  window.addEventListener('DOMContentLoaded',function(){ if(errores.length)pintar(); });
 })();
 </script>
 
@@ -212,8 +223,8 @@
 <input type="file" id="input-original" accept="image/*" hidden>
 <input type="file" id="input-portada" accept="image/*" hidden>
 
-<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" crossorigin="anonymous"></script>
 <script src="js/config.js"></script>
 <script src="js/datos.js"></script>
 <script src="js/app.js"></script>
