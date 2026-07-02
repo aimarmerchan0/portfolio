@@ -110,7 +110,7 @@ function renderGalerias(){
 }
 
 /* ── MAPA ── */
-let mapa=null,capaMarcadores=null,intentosMapa=0,tilesFallidos=0,tilesOk=0;
+let mapa=null,capaTerreno=null,capaSatelite=null,capaMarcadores=null,intentosMapa=0,tilesFallidos=0,tilesOk=0,vistaMapa='terreno';
 function fallbackMapa(txt){
   const f=$('mapa-fallback');
   if(txt){ $('mapa-fallback-txt').textContent=txt; f.classList.add('visible'); }
@@ -134,33 +134,51 @@ function iniciarMapa(){
   }
   try{
     mapa=L.map('mapa',{zoomControl:false,attributionControl:true,tap:true});
-    const capaTiles=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-      attribution:'© OpenStreetMap',maxZoom:19,subdomains:'abc'
-    }).addTo(mapa);
-    capaTiles.on('tileerror',()=>{
-      tilesFallidos++;
-      if(tilesFallidos===1)console.warn('Fallo cargando un tile del mapa');
-      if(tilesFallidos>=6 && tilesOk===0){
-        fallbackMapa('Las imágenes del mapa (OpenStreetMap) no se están cargando en esta red. Prueba con otra red / sin VPN, o recarga.');
-      }
+    /* vista inicial SIEMPRE definida — sin esto Leaflet no sabe qué tiles pedir y no carga nada */
+    mapa.setView([20,0],2);
+
+    capaTerreno=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',{
+      attribution:'Tiles © Esri — Esri, HERE, Garmin, FAO, NOAA, USGS',maxZoom:19
     });
-    capaTiles.on('tileload',()=>{ tilesOk++; if(tilesOk===1)fallbackMapa(null); });
+    capaSatelite=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{
+      attribution:'Tiles © Esri — Esri, Maxar, Earthstar Geographics',maxZoom:19
+    });
+    (vistaMapa==='satelite'?capaSatelite:capaTerreno).addTo(mapa);
+    const marcarCarga=capa=>{
+      capa.on('tileerror',()=>{
+        tilesFallidos++;
+        if(tilesFallidos>=6&&tilesOk===0){
+          fallbackMapa('Las imágenes del mapa no se están cargando en esta red. Prueba con otra red / sin VPN, o recarga.');
+        }
+      });
+      capa.on('tileload',()=>{ tilesOk++; if(tilesOk===1)fallbackMapa(null); });
+    };
+    marcarCarga(capaTerreno);marcarCarga(capaSatelite);
+
     capaMarcadores=L.layerGroup().addTo(mapa);
     mapa.on('click',e=>{ if(typeof clickMapaAdmin==='function')clickMapaAdmin(e); });
     renderMarcadores(true);
     [0,250,600,1200].forEach(ms=>setTimeout(()=>mapa&&mapa.invalidateSize(),ms));
     window.addEventListener('resize',()=>mapa&&mapa.invalidateSize());
     window.addEventListener('orientationchange',()=>setTimeout(()=>mapa&&mapa.invalidateSize(),300));
-    /* si en 5s no hay lugares con coordenadas ni error de tiles, avisa igualmente */
     setTimeout(()=>{
       if(tilesOk===0&&tilesFallidos===0){
-        fallbackMapa('El mapa lleva varios segundos sin recibir respuesta de OpenStreetMap. Puede ser tu red. Toca "Recargar".');
+        fallbackMapa('El mapa lleva varios segundos sin recibir respuesta. Puede ser tu red. Toca "Recargar".');
       }
     },5000);
   }catch(err){
     console.error(err);
     fallbackMapa('Error al crear el mapa: '+err.message);
   }
+}
+function alternarVistaMapa(){
+  if(!mapa)return;
+  if(vistaMapa==='terreno'){
+    mapa.removeLayer(capaTerreno);capaSatelite.addTo(mapa);vistaMapa='satelite';
+  }else{
+    mapa.removeLayer(capaSatelite);capaTerreno.addTo(mapa);vistaMapa='terreno';
+  }
+  $('btn-vista-mapa').textContent=vistaMapa==='terreno'?'Satélite':'Terreno';
 }
 function renderMarcadores(encuadrar=false){
   if(!mapa)return;
