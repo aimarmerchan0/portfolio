@@ -270,30 +270,89 @@ function abrirLugar(lid){
   });
 }
 function abrirColeccion(c){
+  const mismaColeccion=coleccion&&coleccion.tipo===c.tipo&&coleccion.id===c.id;
   coleccion=c;
+  if(!mismaColeccion)modoReordenar=false;
   $('col-cover').src=c.portada||'';
   $('col-nombre').textContent=c.titulo;
   $('col-sub').textContent=c.sub;
   $('col-titulo-mini').textContent=c.titulo;
   $('col-n').textContent=c.fotos.length;
-  $('fab-colec').classList.toggle('visible',c.tipo==='galeria'||c.tipo==='lugar');
-  const grid=$('col-grid');grid.innerHTML='';
-  if(!c.fotos.length)grid.innerHTML='<p class="vacio" style="columns:1">Sin fotos todavía.</p>';
-  c.fotos.forEach((f,j)=>{
-    const cel=document.createElement('div');
-    cel.className='celda';
-    cel.style.animationDelay=(j*.05+.15)+'s';
-    const fecha=f.fechaEfectiva?fechaMostrar(f.fechaEfectiva):'';
-    const etiqueta=c.mostrarOrigen?[f.galeria,fecha].filter(Boolean).join(' · '):'';
-    cel.innerHTML=`<img loading="lazy" src="${f.url}" alt="${f.titulo||''}">
-      ${etiqueta?`<span class="de">${etiqueta}</span>`:''}`;
-    cel.onclick=e=>abrirFoto(j,e.currentTarget);
-    grid.appendChild(cel);
-  });
+  $('fab-colec').classList.toggle('visible',(c.tipo==='galeria'||c.tipo==='lugar')&&!modoReordenar);
+  $('btn-reordenar').style.display=(SESION&&c.tipo==='galeria'&&c.fotos.length>1)?'inline-flex':'none';
+  $('btn-reordenar').textContent=modoReordenar?'Listo':'Reordenar';
+  pintarGridColeccion();
   $('col-scroll').scrollTop=0;
   $('col-topbar').classList.remove('solida');
   $('p-colec').classList.add('abierta');
   document.body.classList.add('empujada');
+}
+let modoReordenar=false,celdasColeccion=[];
+function alternarReordenar(){
+  modoReordenar=!modoReordenar;
+  $('fab-colec').classList.toggle('visible',(coleccion.tipo==='galeria'||coleccion.tipo==='lugar')&&!modoReordenar);
+  $('btn-reordenar').textContent=modoReordenar?'Listo':'Reordenar';
+  pintarGridColeccion();
+}
+function pintarGridColeccion(){
+  const grid=$('col-grid');
+  grid.innerHTML='';
+  grid.classList.toggle('modo-lista',modoReordenar);
+  celdasColeccion=new Array(coleccion.fotos.length).fill(null);
+  if(!coleccion.fotos.length){grid.innerHTML='<p class="vacio" style="columns:1">Sin fotos todavía.</p>';return;}
+
+  if(modoReordenar){
+    coleccion.fotos.forEach((f,j)=>{
+      const fecha=f.fechaEfectiva?fechaMostrar(f.fechaEfectiva):'Sin fecha';
+      const fila=document.createElement('div');
+      fila.className='fila-reordenar';
+      fila.innerHTML=`
+        <div class="marco"><img loading="lazy" src="${miniDe(f)}" alt=""></div>
+        <div class="datos"><b>${f.titulo||'Sin título'}</b><span>${fecha}</span></div>
+        <div class="mover">
+          <button ${j===0?'disabled':''} onclick="moverFoto('${f.id}',-1)" aria-label="Subir"><svg viewBox="0 0 24 24"><path d="m6 15 6-6 6 6"/></svg></button>
+          <button ${j===coleccion.fotos.length-1?'disabled':''} onclick="moverFoto('${f.id}',1)" aria-label="Bajar"><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+        </div>`;
+      grid.appendChild(fila);
+    });
+    return;
+  }
+
+  if(coleccion.tipo==='lugar'&&coleccion.mostrarOrigen){
+    agruparPorVisita(coleccion.fotos).forEach(grp=>{
+      const cab=document.createElement('div');
+      cab.className='cab-visita';
+      const fechaTxt=fechaMostrar(grp.fecha,grp.anio)||'Sin fecha';
+      cab.innerHTML=`<b>${fechaTxt}</b><span>${grp.titulo} · ${grp.fotos.length} foto${grp.fotos.length!==1?'s':''}</span>`;
+      grid.appendChild(cab);
+      const subgrid=document.createElement('div');
+      subgrid.className='subgrid-visita';
+      grp.fotos.forEach(f=>{
+        const jGlobal=coleccion.fotos.indexOf(f);
+        const cel=document.createElement('div');
+        cel.className='celda';
+        cel.innerHTML=`<img loading="lazy" src="${f.url}" alt="${f.titulo||''}">`;
+        cel.onclick=e=>abrirFoto(jGlobal,e.currentTarget);
+        subgrid.appendChild(cel);
+        celdasColeccion[jGlobal]=cel;
+      });
+      grid.appendChild(subgrid);
+    });
+    return;
+  }
+
+  coleccion.fotos.forEach((f,j)=>{
+    const cel=document.createElement('div');
+    cel.className='celda';
+    cel.style.animationDelay=(j*.05+.15)+'s';
+    const fecha=f.fechaEfectiva?fechaMostrar(f.fechaEfectiva):'';
+    const etiqueta=coleccion.mostrarOrigen?[f.galeria,fecha].filter(Boolean).join(' · '):'';
+    cel.innerHTML=`<img loading="lazy" src="${f.url}" alt="${f.titulo||''}">
+      ${etiqueta?`<span class="de">${etiqueta}</span>`:''}`;
+    cel.onclick=e=>abrirFoto(j,e.currentTarget);
+    grid.appendChild(cel);
+    celdasColeccion[j]=cel;
+  });
 }
 function refrescarColeccion(){
   if(!coleccion)return;
@@ -373,7 +432,7 @@ function abrirFoto(j,origenEl=null){
     tira.appendChild(t);
   });
   slides=[...carro.children];pulgs=[...tira.children];
-  celdas=[...($('col-grid').children)];
+  celdas=celdasColeccion;
   irAFoto(j,true);
 
   /* efecto FLIP: crece desde la miniatura tocada hasta el panel de destino */

@@ -282,56 +282,91 @@ async function usarComoPortada(fid){
 }
 
 /* ── FOTOS ── */
+let _fechaLoteActual=null,_alContinuarLote=null;
+function pedirFechaLote(fechaSugerida,alContinuar){
+  _alContinuarLote=alContinuar;
+  hoja(`
+    <div class="grupo">
+      <div class="cab-hoja"><b>Fecha de estas fotos</b><span>Se aplica a todo lo que subas ahora — puedes cambiarla luego foto a foto</span></div>
+      <div class="campo"><label>Fecha</label><input id="in-lote-fecha" type="date" value="${fechaSugerida||''}"></div>
+      <button class="principal" onclick="continuarLoteFecha()">Elegir fotos…</button>
+    </div>
+    <button class="cancelar" onclick="cerrarHoja()">Cancelar</button>`);
+}
+function continuarLoteFecha(){
+  _fechaLoteActual=$('in-lote-fecha').value||null;
+  cerrarHoja();
+  if(_alContinuarLote)_alContinuarLote();
+}
 function subirFotosAGaleria(){
   if(!requiereAdmin())return;
   if(!coleccion)return;
   if(coleccion.tipo==='lugar'){subirFotosALugar(coleccion.id);return;}
-  const input=$('input-fotos');
-  input.onchange=async()=>{
-    const files=[...input.files];input.value='';
-    if(!files.length)return;
-    const gid=coleccion.id;
-    subiendo(`Subiendo 0 de ${files.length}…`);
-    const urls=await subirVarios(files,gid,(hechos,total)=>subiendo(`Subiendo ${hechos} de ${total}…`));
-    let creadas=0;
-    for(let i=0;i<files.length;i++){
-      if(!urls[i])continue;
-      await dbInsert('fotos',{
-        galeria_id:gid,titulo:files[i].name,url:urls[i],
-        vertical:null,exif:'',orden:Date.now()+i,
-      });
-      creadas++;
-    }
-    await cargarDatos();renderTodo();refrescarColeccion();subidaLista();
-    toast(`${creadas} foto${creadas!==1?'s':''} subida${creadas!==1?'s':''}`);
-  };
-  input.click();
+  const g=galeriaDe(coleccion.id);
+  pedirFechaLote(g?g.fecha:'',()=>{
+    const input=$('input-fotos');
+    input.onchange=async()=>{
+      const files=[...input.files];input.value='';
+      if(!files.length)return;
+      const gid=coleccion.id;
+      subiendo(`Subiendo 0 de ${files.length}…`);
+      const urls=await subirVarios(files,gid,(hechos,total)=>subiendo(`Subiendo ${hechos} de ${total}…`));
+      let creadas=0;
+      for(let i=0;i<files.length;i++){
+        if(!urls[i])continue;
+        await dbInsert('fotos',{
+          galeria_id:gid,titulo:files[i].name,url:urls[i],
+          vertical:null,exif:'',orden:Date.now()+i,fecha:_fechaLoteActual||null,
+        });
+        creadas++;
+      }
+      await cargarDatos();renderTodo();refrescarColeccion();subidaLista();
+      toast(`${creadas} foto${creadas!==1?'s':''} subida${creadas!==1?'s':''}`);
+    };
+    input.click();
+  });
 }
 function subirFotosALugar(lugarId){
   if(!requiereAdmin())return;
-  const input=$('input-fotos');
-  input.onchange=async()=>{
-    const files=[...input.files];input.value='';
-    if(!files.length)return;
-    subiendo(`Subiendo 0 de ${files.length}…`);
-    const urls=await subirVarios(files,'lugar-'+lugarId,(hechos,total)=>subiendo(`Subiendo ${hechos} de ${total}…`));
-    let creadas=0;
-    const hoy=new Date().toISOString().slice(0,10);
-    for(let i=0;i<files.length;i++){
-      if(!urls[i])continue;
-      await dbInsert('fotos',{
-        galeria_id:null,lugar_id:lugarId,titulo:files[i].name,url:urls[i],
-        vertical:null,exif:'',orden:Date.now()+i,fecha:hoy,
-      });
-      creadas++;
-    }
-    await cargarDatos();renderTodo();
-    if(coleccion&&coleccion.id===lugarId)refrescarColeccion();
-    else abrirLugar(lugarId);
-    subidaLista();
-    toast(`${creadas} foto${creadas!==1?'s':''} añadida${creadas!==1?'s':''} a este lugar`);
-  };
-  input.click();
+  const hoy=new Date().toISOString().slice(0,10);
+  pedirFechaLote(hoy,()=>{
+    const input=$('input-fotos');
+    input.onchange=async()=>{
+      const files=[...input.files];input.value='';
+      if(!files.length)return;
+      subiendo(`Subiendo 0 de ${files.length}…`);
+      const urls=await subirVarios(files,'lugar-'+lugarId,(hechos,total)=>subiendo(`Subiendo ${hechos} de ${total}…`));
+      let creadas=0;
+      for(let i=0;i<files.length;i++){
+        if(!urls[i])continue;
+        await dbInsert('fotos',{
+          galeria_id:null,lugar_id:lugarId,titulo:files[i].name,url:urls[i],
+          vertical:null,exif:'',orden:Date.now()+i,fecha:_fechaLoteActual||hoy,
+        });
+        creadas++;
+      }
+      await cargarDatos();renderTodo();
+      if(coleccion&&coleccion.id===lugarId)refrescarColeccion();
+      else abrirLugar(lugarId);
+      subidaLista();
+      toast(`${creadas} foto${creadas!==1?'s':''} añadida${creadas!==1?'s':''} a este lugar`);
+    };
+    input.click();
+  });
+}
+/* reordenar: intercambia el valor "orden" con la foto vecina */
+async function moverFoto(fid,dir){
+  if(!requiereAdmin())return;
+  const idx=coleccion.fotos.findIndex(f=>f.id===fid);
+  const idx2=idx+dir;
+  if(idx<0||idx2<0||idx2>=coleccion.fotos.length)return;
+  const a=coleccion.fotos[idx],b=coleccion.fotos[idx2];
+  const ordenA=a.orden??0,ordenB=b.orden??0;
+  const ok1=await dbUpdate('fotos',a.id,{orden:ordenB});
+  const ok2=await dbUpdate('fotos',b.id,{orden:ordenA});
+  if(!ok1||!ok2)return;
+  await cargarDatos();
+  refrescarColeccion();
 }
 function formFoto(fid){
   const f=DATOS.fotos.find(x=>x.id===fid);

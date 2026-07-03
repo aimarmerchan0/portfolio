@@ -62,15 +62,21 @@ function datosDemo() {
 /* ─── carga desde Supabase ─── */
 async function cargarDatos() {
   if (MODO_DEMO) { datosDemo(); return; }
-  const [l, g, f] = await Promise.all([
+  const [l, f] = await Promise.all([
     sb.from("lugares").select("*").order("nombre"),
-    sb.from("galerias").select("*").order("fecha", { ascending: false, nullsFirst: false }).order("anio", { ascending: false }),
     sb.from("fotos").select("*").order("orden", { ascending: true }),
   ]);
+  let g = await sb.from("galerias").select("*").order("fecha", { ascending: false, nullsFirst: false }).order("anio", { ascending: false });
+  if (g.error) {
+    /* probablemente falta ejecutar la migración que añade la columna "fecha" — reintenta sin ella */
+    g = await sb.from("galerias").select("*").order("anio", { ascending: false });
+    if (!g.error) toast('Recuerda ejecutar la migración de fechas (ver INSTRUCCIONES.md) para ordenar por fecha', 5000);
+  }
   if (l.error || g.error || f.error) {
     console.error(l.error || g.error || f.error);
-    toast("Error cargando datos — revisa las tablas de Supabase");
-    datosDemo();
+    /* IMPORTANTE: si Supabase está configurado de verdad, jamás sustituimos tus datos reales
+       por los de prueba — eso solo confundiría, haciendo parecer que se perdió contenido. */
+    toast('No se han podido cargar tus datos de Supabase: ' + (l.error || g.error || f.error).message, 6000);
     return;
   }
   DATOS.lugares = l.data; DATOS.galerias = g.data; DATOS.fotos = f.data;
@@ -109,6 +115,32 @@ function fotosDeLugar(lid) {
 }
 const miniDe = f => f.miniatura || f.url;
 const portadaDeGaleria = g => g.portada_url || (fotosDeGaleria(g.id)[0] || {}).url || "";
+
+/* ─── agrupa las fotos de un lugar por visita (galería o lote de fecha), en orden cronológico ─── */
+function agruparPorVisita(fotos) {
+  const grupos = new Map();
+  fotos.forEach(f => {
+    const clave = f.galeria_id || ('sin-galeria-' + (f.fecha || 'sin-fecha'));
+    if (!grupos.has(clave)) {
+      const g = f.galeria_id ? galeriaDe(f.galeria_id) : null;
+      grupos.set(clave, {
+        clave,
+        titulo: g ? g.nombre : 'Fotos sueltas',
+        fecha: (g && g.fecha) || f.fechaEfectiva || null,
+        anio: g ? g.anio : null,
+        galeriaId: f.galeria_id || null,
+        fotos: [],
+      });
+    }
+    grupos.get(clave).fotos.push(f);
+  });
+  return [...grupos.values()].sort((a, b) => {
+    if (a.fecha && b.fecha) return a.fecha < b.fecha ? -1 : 1;
+    if (a.fecha) return -1;
+    if (b.fecha) return 1;
+    return 0;
+  });
+}
 
 /* ─── distancia entre coordenadas (para evitar lugares duplicados) ─── */
 function distanciaKm(lat1, lng1, lat2, lng2) {
