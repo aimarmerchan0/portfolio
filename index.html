@@ -6,11 +6,13 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Aimar Merchán — Archivo</title>
 
-<!-- ═══ diagnóstico: muestra cualquier error en pantalla en vez de fallar en silencio ═══ -->
+<!-- ═══ diagnóstico: solo visible para el administrador logueado ═══ -->
 <script>
 (function(){
   var errores=[];
+  window.__diagAdmin=false;
   function pintar(){
+    if(!window.__diagAdmin)return; /* los visitantes nunca ven esto */
     var el=document.getElementById('_diag');
     if(!el){
       el=document.createElement('div');
@@ -24,7 +26,8 @@
       (document.body||document.documentElement).appendChild(cerrar);
       (document.body||document.documentElement).appendChild(el);
     }
-    el.textContent='⚠️ '+errores.length+' error(es) — toca la ✕ para cerrar, o haz captura:\n\n'+errores.join('\n\n');
+    el.style.display='';
+    el.textContent='⚠️ '+errores.length+' error(es) — solo lo ves porque eres admin. Toca ✕ para cerrar:\n\n'+errores.join('\n\n');
   }
   window.addEventListener('error',function(e){
     var msg;
@@ -43,6 +46,12 @@
     errores.push('Promesa rechazada: '+(e.reason&&(e.reason.message||e.reason)||'desconocido'));
     pintar();
   });
+  /* admin.js llama a esto cuando confirma si hay sesión de administrador */
+  window.__diagActualizar=function(esAdmin){
+    window.__diagAdmin=esAdmin;
+    if(esAdmin&&errores.length)pintar();
+    else{ var el=document.getElementById('_diag'); if(el)el.style.display='none'; }
+  };
 })();
 </script>
 

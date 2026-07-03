@@ -104,6 +104,17 @@ En **Settings → API** copia:
 
 ---
 
+## 1.5 · Migración: añadir fechas (ejecutar una sola vez)
+
+Si ya creaste las tablas antes de esta versión, ve a **SQL Editor → New query** y ejecuta esto para añadir las columnas de fecha (no borra nada de lo que ya tengas):
+
+```sql
+alter table galerias add column if not exists fecha date;
+alter table fotos    add column if not exists fecha date;
+```
+
+---
+
 ## 2 · Publicar en GitHub + Vercel (desde el iPad)
 
 1. Descarga los 6 archivos de este chat a la app **Archivos**, respetando las carpetas `css/` y `js/`.
@@ -114,19 +125,26 @@ En **Settings → API** copia:
 
 ## 3 · Actualizar la web más adelante
 
-- **Contenido (fotos, galerías, lugares, portadas, originales):** no hace falta tocar código nunca. Todo se hace desde la propia web con tu sesión de administrador.
+- **Contenido (fotos, galerías, lugares, portadas, originales, fechas):** no hace falta tocar código nunca. Todo se hace desde la propia web con tu sesión de administrador.
 - **Diseño o código:** edita el archivo en GitHub (abre el archivo → icono del lápiz → guarda con *Commit changes*). Vercel republica solo en ~1 minuto.
 - **Dominio propio:** Vercel → tu proyecto → **Settings → Domains** → añade `aimarmerchan.com` y sigue las instrucciones de DNS.
 
 ## 4 · Qué puedes hacer como administrador
 
+Todo lo de abajo **solo es visible con tu sesión iniciada** — un visitante no ve ningún botón de crear, editar ni el panel de errores.
+
 | Dónde | Acción |
 |---|---|
-| Mapa → botón **+** | Crear lugar (formulario o **tocando el mapa** para fijar lat/lng) |
-| Tarjeta de lugar / pin | Editar, **cambiar ubicación en el mapa**, eliminar |
-| Galerías → botón **+** | Crear galería (nombre, año, lugar) |
+| Mapa → botón **+** | Elegir entre tocar el mapa directamente, o escribir coordenadas a mano |
+| Mapa → tocar cualquier punto | Crear un lugar ahí al instante (si el nombre/zona se parece a uno que ya existe, te lo avisa para evitar duplicar) |
+| Formulario de lugar | **Buscar por dirección** ("Alicante, España") y rellenar coordenadas automáticamente |
+| Al crear un lugar | Te ofrece subir fotos a ese lugar inmediatamente |
+| Tarjeta de lugar / pin | Editar, **añadir fotos directamente al lugar** (sin necesidad de galería), cambiar ubicación, eliminar |
+| Galerías → botón **+** | Crear galería (nombre, **fecha exacta o año**, lugar) |
 | Tarjeta de galería → ··· | Editar, cambiar portada, eliminar |
-| Dentro de una galería → **+** | **Subir fotos** (varias a la vez, desde Fotos del iPhone/iPad) |
-| Una foto → Info | Editar título/EXIF, asignarle **su propio lugar**, **subir el original (antes)**, usarla de portada, eliminar |
+| Dentro de una galería o un lugar → **+** | **Subir varias fotos a la vez** (se comprimen automáticamente para subir más rápido) |
+| Una foto → Info | Editar título/**fecha**/EXIF/lugar propio, **subir el original (antes)**, usarla de portada, eliminar |
+| Vista de un lugar | Las fotos de todas sus visitas se muestran **ordenadas por fecha**, como una línea de tiempo — perfecto para volver al mismo sitio en épocas distintas sin duplicar el lugar |
 
-El botón **Antes/Después** del visor usa el original real si lo has subido; si no, lo simula.
+El botón **Antes/Después** del visor usa el original real si lo has subido (ambas versiones se ven siempre al mismo tamaño, sea cual sea el archivo); si no, lo simula. Al tocar una foto, el visor se abre con un efecto de zoom desde la miniatura.
+
