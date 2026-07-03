@@ -98,6 +98,7 @@
   <div class="zona-admin">
     <div class="estado"><i></i><span id="admin-estado">Visitante</span></div>
     <button id="btn-admin" onclick="accionAdmin()">Acceso administrador</button>
+    <button id="btn-miniaturas" onclick="generarMiniaturasFaltantes()" style="display:none;margin-top:8px;background:var(--fondo2);color:var(--tinta)">Generar miniaturas que faltan</button>
   </div>
   <div class="pie-menu">
     <b id="menu-lema"></b><br><br>
@@ -229,7 +230,7 @@
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17M12 8l3.5 4L12 16"/></svg>
       Antes / Después
     </button>
-    <div class="sep"></div>
+    <div class="sep" id="sep-cmp"></div>
     <button onclick="compartirFoto()">
       <svg viewBox="0 0 24 24"><path d="M12 15V4M8 7.5 12 3.5l4 4"/><path d="M5 12v7a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19v-7"/></svg>
       Compartir
