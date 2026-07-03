@@ -233,6 +233,7 @@ body.admin .cab-raiz .admin-chip{display:inline-flex}
   box-shadow:0 14px 30px -8px rgba(20,20,18,.5);
   transition:transform .3s var(--rebote);
 }
+body:not(.admin) .fab{display:none!important}
 .fab:active{transform:scale(.85) rotate(45deg)}
 .fab svg{width:22px;height:22px;stroke:#FAFAF8;stroke-width:2;fill:none;stroke-linecap:round}
 
@@ -429,6 +430,16 @@ body.admin #fab-colec.visible{display:flex}
 }
 #hoja .campo input:focus,#hoja .campo select:focus{border-color:var(--tinta)}
 #hoja .campo .doble{display:flex;gap:10px}
+#hoja .campo .doble input{flex:1}
+#resultados-direccion{margin-top:8px}
+.resultado-dir{
+  display:block;width:100%;text-align:left;padding:11px 12px;border-radius:10px;
+  background:var(--fondo2);margin-bottom:6px;transition:background .2s;
+}
+.resultado-dir:active{background:var(--linea)}
+.resultado-dir b{display:block;font-size:14.5px;font-weight:600}
+.resultado-dir span{display:block;font-size:12.5px;color:var(--gris);margin-top:2px}
+.resultado-dir.cargando{color:var(--gris);font-size:13px;background:none;padding:8px 4px}
 #hoja .principal{
   display:block;width:calc(100% - 36px);margin:6px 18px 16px;
   background:var(--tinta);color:#FAFAF8;border-radius:13px;padding:14px;
