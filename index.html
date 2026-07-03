@@ -57,8 +57,7 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@0,62..125,100..900;1,62..125,100..900&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,700..900&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/estilos.css">
 </head>
 <body>
@@ -90,6 +89,10 @@
     <button data-ir="mapa">
       <svg viewBox="0 0 24 24"><path d="M9 4 3 6.5v13L9 17l6 2.5 6-2.5v-13L15 6.5 9 4z"/><path d="M9 4v13M15 6.5v13"/></svg>
       Mapa <span class="num" id="menu-num-lug"></span>
+    </button>
+    <button data-ir="cronologia">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+      Cronología
     </button>
   </nav>
   <div class="zona-admin">
@@ -134,6 +137,8 @@
 
     <div class="seccion-cab entra"><h2 class="disp">Galerías recientes</h2><button onclick="irRaiz('galerias')">Ver todas</button></div>
     <div class="carrusel entra" id="recientes"></div>
+    <div class="seccion-cab entra"><h2 class="disp">Cronología</h2><button onclick="irRaiz('cronologia')">Ver todo</button></div>
+    <div class="carrusel-cron entra" id="inicio-cronologia"></div>
     <div class="seccion-cab entra"><h2 class="disp">Lugares</h2><button onclick="irRaiz('mapa')">Ver mapa</button></div>
     <div id="inicio-lugares" class="entra"></div>
     <p class="lema-pie"><span id="lema-pie-txt"></span></p>
@@ -145,6 +150,7 @@
   <div class="cab-raiz">
     <button class="btn-menu" onclick="abrirMenu()"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg></button>
     <h1 class="disp">Galerías</h1>
+    <button id="btn-reordenar-gal" class="pildora" style="display:none" onclick="alternarReordenarGalerias()">Reordenar</button>
     <span class="admin-chip">Admin</span>
   </div>
   <div class="scroll"><div class="lista-galerias" id="lista-galerias"></div></div>
@@ -172,6 +178,16 @@
     <div id="mapa-cartas"></div>
   </div>
   <button class="fab" style="bottom:calc(env(safe-area-inset-bottom) + 118px)" onclick="fabMapa()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+</div>
+
+<!-- CRONOLOGÍA -->
+<div class="pantalla raiz" id="p-cronologia" style="display:none">
+  <div class="cab-raiz">
+    <button class="btn-menu" onclick="abrirMenu()"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg></button>
+    <h1 class="disp">Cronología</h1>
+    <span class="admin-chip">Admin</span>
+  </div>
+  <div class="scroll"><div id="cronologia-lista"></div></div>
 </div>
 
 <!-- COLECCIÓN -->
@@ -236,7 +252,6 @@
 <input type="file" id="input-original" accept="image/*" hidden>
 <input type="file" id="input-portada" accept="image/*" hidden>
 
-<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" crossorigin="anonymous"></script>
 <script src="js/config.js"></script>
 <script src="js/datos.js"></script>
