@@ -1,7 +1,11 @@
 /* ═══════════ APP: interfaz y navegación ═══════════ */
 
 /* ── utilidades ── */
-const $ = id => document.getElementById(id);
+const $ = id => {
+  const el = document.getElementById(id);
+  if (!el) console.warn('Elemento no encontrado en el HTML: #'+id);
+  return el;
+};
 function toast(m,duracion=2400){
   const t=$('toast');t.textContent=m;t.classList.add('visible');
   clearTimeout(t._to);t._to=setTimeout(()=>t.classList.remove('visible'),duracion);
@@ -43,11 +47,18 @@ function cerrarMenu(){$('menu').classList.remove('abierto');$('velo-menu').class
 
 /* ═══ RENDER GLOBAL (se llama al cargar y tras cada cambio del admin) ═══ */
 function renderTodo(){
-  renderInicio();
-  renderGalerias();
-  renderMapaCartas();
-  if(mapa)renderMarcadores();
-  if(raizActual==='cronologia')renderCronologia();
+  intentar(renderInicio);
+  intentar(renderGalerias);
+  intentar(renderMapaCartas);
+  if(mapa)intentar(renderMarcadores);
+  if(raizActual==='cronologia')intentar(renderCronologia);
+}
+function intentar(fn){
+  try{fn();}
+  catch(err){
+    console.error(err);
+    toast('Error visual en '+fn.name+': '+err.message,5000);
+  }
 }
 
 /* ── INICIO ── */
