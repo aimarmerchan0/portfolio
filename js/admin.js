@@ -212,33 +212,87 @@ async function eliminarLugar(lid){
 }
 
 /* ── GALERÍAS ── */
+let _lugarNuevoGaleria=null,_lugarGaleriaTimer=null;
 function formGaleria(gid){
-  const g=gid?galeriaDe(gid):{nombre:'',anio:new Date().getFullYear()+'',lugar_id:'',fecha:''};
-  const ops=DATOS.lugares.map(l=>`<option value="${l.id}" ${l.id===g.lugar_id?'selected':''}>${l.nombre}</option>`).join('');
+  const g=gid?galeriaDe(gid):{nombre:'',anio:'',lugar_id:''};
+  const lugarActual=g.lugar_id?lugarDe(g.lugar_id):null;
+  _lugarNuevoGaleria=null;
   hoja(`
     <div class="grupo">
-      <div class="cab-hoja"><b>${gid?'Editar galería':'Nueva galería'}</b><span>Después podrás subir fotos desde dentro</span></div>
+      <div class="cab-hoja"><b>${gid?'Editar galería':'Nueva galería'}</b><span>Las fechas se ponen en cada foto — aquí no hace falta</span></div>
       <div class="campo"><label>Nombre</label><input id="in-gal-nombre" value="${g.nombre||''}" placeholder="Benidorm"></div>
-      <div class="campo"><label>Fecha de la visita</label><input id="in-gal-fecha" type="date" value="${g.fecha||''}"></div>
-      <div class="campo"><label>Año (si no sabes la fecha exacta)</label><input id="in-gal-anio" inputmode="numeric" value="${g.anio||''}" placeholder="2026"></div>
-      <div class="campo"><label>Lugar</label>
-        <select id="in-gal-lugar"><option value="">— Sin lugar —</option>${ops}</select>
+      <div class="campo"><label>Año (opcional, solo de referencia)</label><input id="in-gal-anio" inputmode="numeric" value="${g.anio||''}" placeholder="2026"></div>
+      <div class="campo">
+        <label>Lugar</label>
+        <input id="in-gal-lugar-buscar" placeholder="Busca uno existente o escribe una dirección…" autocomplete="off"
+          value="${lugarActual?lugarActual.nombre:''}"
+          oninput="buscarLugarGaleria(this.value)" onfocus="buscarLugarGaleria(this.value)">
+        <input type="hidden" id="in-gal-lugar-id" value="${g.lugar_id||''}">
+        <div id="resultados-lugar-galeria"></div>
       </div>
       ${gid?`<button class="principal" style="background:var(--fondo2);color:var(--tinta)" onclick="cambiarPortada('${gid}')">Cambiar portada (subir imagen)</button>`:''}
       <button class="principal" onclick="guardarGaleria('${gid||''}')">Guardar galería</button>
-      ${DATOS.lugares.length?'':'<p class="nota-form">Aún no hay lugares: crea uno desde el Mapa (+) para poder asignarlo.</p>'}
     </div>
     <button class="cancelar" onclick="cerrarHoja()">Cancelar</button>`);
 }
+function buscarLugarGaleria(q){
+  clearTimeout(_lugarGaleriaTimer);
+  const texto=(q||'').trim().toLowerCase();
+  const cont=$('resultados-lugar-galeria');
+  const locales=DATOS.lugares.filter(l=>!texto||l.nombre.toLowerCase().includes(texto)||(l.region||'').toLowerCase().includes(texto)).slice(0,6);
+  let html='';
+  if(locales.length){
+    html+='<div class="resultado-cab">Tus lugares</div>'+
+      locales.map(l=>`<button class="resultado-dir" onclick="elegirLugarGaleria('${l.id}','${l.nombre.replace(/'/g,"\\'")}')"><b>${l.nombre}</b><span>${l.region||''}</span></button>`).join('');
+  }
+  if(texto&&!locales.length){
+    html+='<div class="resultado-dir cargando">Sin lugares que coincidan — sigue escribiendo para buscar una dirección</div>';
+  }
+  cont.innerHTML=html;
+  if(texto.length<3)return;
+  _lugarGaleriaTimer=setTimeout(async()=>{
+    const resultados=await buscarDireccion(texto);
+    const nuevos=resultados.filter(r=>!DATOS.lugares.some(l=>l.nombre.toLowerCase()===r.nombre.toLowerCase()));
+    if(!nuevos.length)return;
+    window.__nuevosLugarGaleria=nuevos;
+    cont.innerHTML+='<div class="resultado-cab">Crear lugar nuevo</div>'+
+      nuevos.map((r,i)=>`<button class="resultado-dir" onclick="elegirLugarNuevoGaleria(${i})"><b>${r.nombre}</b><span>${r.region}</span></button>`).join('');
+  },450);
+}
+function elegirLugarGaleria(id,nombre){
+  $('in-gal-lugar-buscar').value=nombre;
+  $('in-gal-lugar-id').value=id;
+  _lugarNuevoGaleria=null;
+  $('resultados-lugar-galeria').innerHTML='';
+}
+function elegirLugarNuevoGaleria(i){
+  const r=window.__nuevosLugarGaleria[i];
+  $('in-gal-lugar-buscar').value=r.nombre;
+  $('in-gal-lugar-id').value='';
+  _lugarNuevoGaleria=r;
+  $('resultados-lugar-galeria').innerHTML='';
+}
 async function guardarGaleria(gid){
   if(!requiereAdmin())return;
+  let lugarId=$('in-gal-lugar-id').value||null;
+  if(!$('in-gal-lugar-buscar').value.trim()){lugarId=null;_lugarNuevoGaleria=null;}
+  if(!lugarId&&_lugarNuevoGaleria){
+    const r=_lugarNuevoGaleria;
+    const parecido=buscarLugarSimilar(r.nombre,r.lat,r.lng);
+    if(parecido)lugarId=parecido.id;
+    else{
+      const nuevo=await dbInsert('lugares',{nombre:r.nombre,region:r.region,lat:r.lat,lng:r.lng});
+      if(!nuevo)return;
+      lugarId=nuevo.id;
+    }
+  }
   const fila={
     nombre:$('in-gal-nombre').value.trim(),
     anio:$('in-gal-anio').value.trim(),
-    fecha:$('in-gal-fecha').value||null,
-    lugar_id:$('in-gal-lugar').value||null,
+    lugar_id:lugarId,
   };
   if(!fila.nombre){toast('La galería necesita un nombre');return;}
+  if(!gid)fila.orden=Date.now();
   cerrarHoja();subiendo('Guardando galería…');
   let nueva=null;
   if(gid)await dbUpdate('galerias',gid,fila);
@@ -247,6 +301,19 @@ async function guardarGaleria(gid){
   if(coleccion&&$('p-colec').classList.contains('abierta'))refrescarColeccion();
   if(nueva){abrirGaleria(nueva.id);toast('Galería creada — usa + para subir fotos');}
   else toast('Galería guardada');
+}
+/* reordenar galerías: intercambia el valor "orden" con la vecina */
+async function moverGaleria(gid,dir){
+  if(!requiereAdmin())return;
+  const idx=DATOS.galerias.findIndex(g=>g.id===gid);
+  const idx2=idx+dir;
+  if(idx<0||idx2<0||idx2>=DATOS.galerias.length)return;
+  const a=DATOS.galerias[idx],b=DATOS.galerias[idx2];
+  const ordenA=a.orden??0,ordenB=b.orden??0;
+  const ok1=await dbUpdate('galerias',a.id,{orden:ordenB});
+  const ok2=await dbUpdate('galerias',b.id,{orden:ordenA});
+  if(!ok1||!ok2)return;
+  await cargarDatos();renderTodo();
 }
 async function eliminarGaleria(gid){
   if(!requiereAdmin())return;
@@ -302,26 +369,28 @@ function subirFotosAGaleria(){
   if(!requiereAdmin())return;
   if(!coleccion)return;
   if(coleccion.tipo==='lugar'){subirFotosALugar(coleccion.id);return;}
-  const g=galeriaDe(coleccion.id);
-  pedirFechaLote(g?g.fecha:'',()=>{
+  const hoy=new Date().toISOString().slice(0,10);
+  pedirFechaLote(hoy,()=>{
     const input=$('input-fotos');
     input.onchange=async()=>{
       const files=[...input.files];input.value='';
       if(!files.length)return;
       const gid=coleccion.id;
       subiendo(`Subiendo 0 de ${files.length}…`);
-      const urls=await subirVarios(files,gid,(hechos,total)=>subiendo(`Subiendo ${hechos} de ${total}…`));
+      const resultados=await subirVariosConMiniatura(files,gid,(hechos,total)=>subiendo(`Subiendo ${hechos} de ${total}…`));
       let creadas=0;
       for(let i=0;i<files.length;i++){
-        if(!urls[i])continue;
-        await dbInsert('fotos',{
-          galeria_id:gid,titulo:files[i].name,url:urls[i],
-          vertical:null,exif:'',orden:Date.now()+i,fecha:_fechaLoteActual||null,
+        const r=resultados[i];
+        if(!r||!r.url)continue;
+        const ok=await dbInsert('fotos',{
+          galeria_id:gid,titulo:files[i].name,url:r.url,miniatura:r.miniatura,
+          vertical:null,exif:'',orden:Date.now()+i,fecha:_fechaLoteActual||hoy,
         });
-        creadas++;
+        if(ok)creadas++;
       }
       await cargarDatos();renderTodo();refrescarColeccion();subidaLista();
-      toast(`${creadas} foto${creadas!==1?'s':''} subida${creadas!==1?'s':''}`);
+      const fallidas=files.length-creadas;
+      toast(`${creadas} foto${creadas!==1?'s':''} subida${creadas!==1?'s':''}${fallidas?` — ${fallidas} fallaron`:''}`);
     };
     input.click();
   });
@@ -335,21 +404,23 @@ function subirFotosALugar(lugarId){
       const files=[...input.files];input.value='';
       if(!files.length)return;
       subiendo(`Subiendo 0 de ${files.length}…`);
-      const urls=await subirVarios(files,'lugar-'+lugarId,(hechos,total)=>subiendo(`Subiendo ${hechos} de ${total}…`));
+      const resultados=await subirVariosConMiniatura(files,'lugar-'+lugarId,(hechos,total)=>subiendo(`Subiendo ${hechos} de ${total}…`));
       let creadas=0;
       for(let i=0;i<files.length;i++){
-        if(!urls[i])continue;
-        await dbInsert('fotos',{
-          galeria_id:null,lugar_id:lugarId,titulo:files[i].name,url:urls[i],
+        const r=resultados[i];
+        if(!r||!r.url)continue;
+        const ok=await dbInsert('fotos',{
+          galeria_id:null,lugar_id:lugarId,titulo:files[i].name,url:r.url,miniatura:r.miniatura,
           vertical:null,exif:'',orden:Date.now()+i,fecha:_fechaLoteActual||hoy,
         });
-        creadas++;
+        if(ok)creadas++;
       }
       await cargarDatos();renderTodo();
       if(coleccion&&coleccion.id===lugarId)refrescarColeccion();
       else abrirLugar(lugarId);
       subidaLista();
-      toast(`${creadas} foto${creadas!==1?'s':''} añadida${creadas!==1?'s':''} a este lugar`);
+      const fallidas=files.length-creadas;
+      toast(`${creadas} foto${creadas!==1?'s':''} añadida${creadas!==1?'s':''} a este lugar${fallidas?` — ${fallidas} fallaron`:''}`);
     };
     input.click();
   });
@@ -375,7 +446,7 @@ function formFoto(fid){
     <div class="grupo">
       <div class="cab-hoja"><b>Editar foto</b><span>${f.titulo||''}</span></div>
       <div class="campo"><label>Título / archivo</label><input id="in-f-titulo" value="${f.titulo||''}"></div>
-      <div class="campo"><label>Fecha de esta foto (opcional, si es distinta a la galería)</label><input id="in-f-fecha" type="date" value="${f.fecha||''}"></div>
+      <div class="campo"><label>Fecha</label><input id="in-f-fecha" type="date" value="${f.fecha||''}"></div>
       <div class="campo"><label>EXIF (opcional)</label><input id="in-f-exif" value="${f.exif||''}" placeholder="f/2.8 · 1/640 · ISO 100 · 35mm"></div>
       <div class="campo"><label>Lugar propio (si es distinto al de la galería)</label>
         <select id="in-f-lugar"><option value="">— El de la galería —</option>${ops}</select>

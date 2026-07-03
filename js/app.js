@@ -12,8 +12,7 @@ function subiendo(txt){$('progreso-txt').textContent=txt;$('progreso-subida').cl
 function subidaLista(){$('progreso-subida').classList.remove('visible');}
 
 /* ── arranque ── */
-setTimeout(()=>$('arranque').classList.add('disparo'),1150);
-setTimeout(()=>$('arranque').classList.add('fuera'),1400);
+function esperar(ms){return new Promise(r=>setTimeout(r,ms));}
 
 /* ── perfil ── */
 $('menu-nombre').textContent=PERFIL.nombre;
@@ -23,7 +22,7 @@ $('menu-copy').textContent=PERFIL.nombre;
 $('lema-pie-txt').textContent='Mirar despacio también es un oficio';
 
 /* ── navegación raíz ── */
-const raices={inicio:$('p-inicio'),galerias:$('p-galerias'),mapa:$('p-mapa')};
+const raices={inicio:$('p-inicio'),galerias:$('p-galerias'),mapa:$('p-mapa'),cronologia:$('p-cronologia')};
 let raizActual='inicio';
 function irRaiz(n){
   raices[raizActual].style.display='none';
@@ -34,7 +33,8 @@ function irRaiz(n){
     el.style.animation='none';void el.offsetHeight;
     el.style.animation='';el.style.animationDelay=(i*.06+.05)+'s';
   });
-  if(n==='mapa')setTimeout(iniciarMapa,120);
+  if(n==='mapa')iniciarMapa();
+  if(n==='cronologia')renderCronologia();
   cerrarMenu();
 }
 document.querySelectorAll('#menu nav button').forEach(b=>b.onclick=()=>irRaiz(b.dataset.ir));
@@ -47,6 +47,7 @@ function renderTodo(){
   renderGalerias();
   renderMapaCartas();
   if(mapa)renderMarcadores();
+  if(raizActual==='cronologia')renderCronologia();
 }
 
 /* ── INICIO ── */
@@ -75,6 +76,21 @@ function renderInicio(){
   const il=$('inicio-lugares');il.innerHTML='';
   if(!DATOS.lugares.length)il.innerHTML='<p class="vacio">Aún no hay lugares.</p>';
   DATOS.lugares.slice(0,3).forEach(l=>il.appendChild(filaLugar(l)));
+
+  renderCronologiaPreview();
+}
+function renderCronologiaPreview(){
+  const cont=$('inicio-cronologia');cont.innerHTML='';
+  const todas=todasLasFotosOrdenadas().slice(0,10);
+  if(!todas.length){cont.innerHTML='<p class="vacio">Aún no hay fotos.</p>';return;}
+  todas.forEach((f,j)=>{
+    const d=document.createElement('button');
+    d.className='foto-mini-cron';
+    d.innerHTML=`<img loading="lazy" src="${miniDe(f)}" alt="">
+      <span>${f.lugarNombre||'Sin ubicación'}</span>`;
+    d.onclick=e=>abrirFotoCronologia(todasLasFotosOrdenadas().findIndex(x=>x.id===f.id),e.currentTarget);
+    cont.appendChild(d);
+  });
 }
 function filaLugar(l){
   const fotos=fotosDeLugar(l.id);
@@ -88,9 +104,36 @@ function filaLugar(l){
 }
 
 /* ── GALERÍAS ── */
+let modoReordenarGalerias=false;
+function alternarReordenarGalerias(){
+  modoReordenarGalerias=!modoReordenarGalerias;
+  renderGalerias();
+}
 function renderGalerias(){
   const cont=$('lista-galerias');cont.innerHTML='';
-  if(!DATOS.galerias.length)cont.innerHTML='<p class="vacio">Aún no hay galerías. '+(SESION?'Usa el botón + para crear la primera.':'')+'</p>';
+  const btnR=$('btn-reordenar-gal');
+  btnR.style.display=(SESION&&DATOS.galerias.length>1)?'inline-flex':'none';
+  btnR.textContent=modoReordenarGalerias?'Listo':'Reordenar';
+  if(!DATOS.galerias.length){cont.innerHTML='<p class="vacio">Aún no hay galerías. '+(SESION?'Usa el botón + para crear la primera.':'')+'</p>';return;}
+
+  if(modoReordenarGalerias){
+    DATOS.galerias.forEach((g,j)=>{
+      const l=lugarDe(g.lugar_id)||{};
+      const n=fotosDeGaleria(g.id).length;
+      const fila=document.createElement('div');
+      fila.className='fila-reordenar';
+      fila.innerHTML=`
+        <div class="marco"><img loading="lazy" src="${portadaDeGaleria(g)}" alt=""></div>
+        <div class="datos"><b>${g.nombre}</b><span>${n} fotos${l.nombre?' · '+l.nombre:''}</span></div>
+        <div class="mover">
+          <button ${j===0?'disabled':''} onclick="moverGaleria('${g.id}',-1)" aria-label="Subir"><svg viewBox="0 0 24 24"><path d="m6 15 6-6 6 6"/></svg></button>
+          <button ${j===DATOS.galerias.length-1?'disabled':''} onclick="moverGaleria('${g.id}',1)" aria-label="Bajar"><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+        </div>`;
+      cont.appendChild(fila);
+    });
+    return;
+  }
+
   DATOS.galerias.forEach((g,i)=>{
     const l=lugarDe(g.lugar_id)||{};
     const n=fotosDeGaleria(g.id).length;
@@ -111,6 +154,24 @@ function renderGalerias(){
 
 /* ── MAPA ── */
 let mapa=null,capaTerreno=null,capaSatelite=null,capaMarcadores=null,intentosMapa=0,tilesFallidos=0,tilesOk=0,vistaMapa='terreno';
+let _leafletCargando=null;
+function cargarLeaflet(){
+  if(window.L)return Promise.resolve();
+  if(_leafletCargando)return _leafletCargando;
+  _leafletCargando=new Promise((resolve,reject)=>{
+    const css=document.createElement('link');
+    css.rel='stylesheet';
+    css.href='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';
+    document.head.appendChild(css);
+    const script=document.createElement('script');
+    script.src='https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js';
+    script.crossOrigin='anonymous';
+    script.onload=()=>resolve();
+    script.onerror=()=>reject(new Error('no se pudo descargar'));
+    document.body.appendChild(script);
+  });
+  return _leafletCargando;
+}
 function fallbackMapa(txt){
   const f=$('mapa-fallback');
   if(txt){ $('mapa-fallback-txt').textContent=txt; f.classList.add('visible'); }
@@ -118,17 +179,17 @@ function fallbackMapa(txt){
 }
 function iniciarMapa(){
   if(mapa){mapa.invalidateSize();return;}
-  if(typeof L==='undefined'){
-    intentosMapa++;
-    if(intentosMapa<=8){setTimeout(iniciarMapa,400);return;}
-    fallbackMapa('La librería del mapa (Leaflet) no ha podido cargarse. Revisa tu conexión a internet y recarga.');
-    return;
-  }
+  cargarLeaflet().then(iniciarMapaReal).catch(err=>{
+    console.error(err);
+    fallbackMapa('La librería del mapa no ha podido cargarse ('+err.message+'). Revisa tu conexión y recarga.');
+  });
+}
+function iniciarMapaReal(){
   const cont=$('mapa-zona');
   const r=cont.getBoundingClientRect();
   if(r.height<40){
     intentosMapa++;
-    if(intentosMapa<=8){setTimeout(iniciarMapa,300);return;}
+    if(intentosMapa<=8){setTimeout(iniciarMapaReal,300);return;}
     fallbackMapa('El contenedor del mapa no tiene tamaño ('+Math.round(r.width)+'×'+Math.round(r.height)+'px). Es probable que css/estilos.css no se haya subido completo a GitHub.');
     return;
   }
@@ -322,7 +383,7 @@ function pintarGridColeccion(){
     agruparPorVisita(coleccion.fotos).forEach(grp=>{
       const cab=document.createElement('div');
       cab.className='cab-visita';
-      const fechaTxt=fechaMostrar(grp.fecha,grp.anio)||'Sin fecha';
+      const fechaTxt=grp.fecha?fechaMostrar(grp.fecha):'Sin fecha';
       cab.innerHTML=`<b>${fechaTxt}</b><span>${grp.titulo} · ${grp.fotos.length} foto${grp.fotos.length!==1?'s':''}</span>`;
       grid.appendChild(cab);
       const subgrid=document.createElement('div');
@@ -331,7 +392,7 @@ function pintarGridColeccion(){
         const jGlobal=coleccion.fotos.indexOf(f);
         const cel=document.createElement('div');
         cel.className='celda';
-        cel.innerHTML=`<img loading="lazy" src="${f.url}" alt="${f.titulo||''}">`;
+        cel.innerHTML=`<img loading="lazy" src="${miniDe(f)}" alt="${f.titulo||''}">`;
         cel.onclick=e=>abrirFoto(jGlobal,e.currentTarget);
         subgrid.appendChild(cel);
         celdasColeccion[jGlobal]=cel;
@@ -347,7 +408,7 @@ function pintarGridColeccion(){
     cel.style.animationDelay=(j*.05+.15)+'s';
     const fecha=f.fechaEfectiva?fechaMostrar(f.fechaEfectiva):'';
     const etiqueta=coleccion.mostrarOrigen?[f.galeria,fecha].filter(Boolean).join(' · '):'';
-    cel.innerHTML=`<img loading="lazy" src="${f.url}" alt="${f.titulo||''}">
+    cel.innerHTML=`<img loading="lazy" src="${miniDe(f)}" alt="${f.titulo||''}">
       ${etiqueta?`<span class="de">${etiqueta}</span>`:''}`;
     cel.onclick=e=>abrirFoto(j,e.currentTarget);
     grid.appendChild(cel);
@@ -357,7 +418,8 @@ function pintarGridColeccion(){
 function refrescarColeccion(){
   if(!coleccion)return;
   if(coleccion.tipo==='galeria')abrirGaleria(coleccion.id);
-  else abrirLugar(coleccion.id);
+  else if(coleccion.tipo==='lugar')abrirLugar(coleccion.id);
+  else if(coleccion.tipo==='cronologia'){coleccion.fotos=todasLasFotosOrdenadas();renderCronologia();}
 }
 function volverDeColec(){
   $('p-colec').classList.remove('abierta');
@@ -411,6 +473,53 @@ function rectPanelDestino(){
     return {left:(w-pw)/2,top:0,width:pw,height:h};
   }
   return {left:0,top:0,width:w,height:h};
+}
+
+/* ═══ CRONOLOGÍA: todas las fotos, de cualquier galería o lugar, más recientes primero ═══ */
+let celdasCronologia=[];
+function renderCronologia(){
+  const cont=$('cronologia-lista');
+  cont.innerHTML='';
+  const todas=todasLasFotosOrdenadas();
+  celdasCronologia=new Array(todas.length).fill(null);
+  if(!todas.length){cont.innerHTML='<p class="vacio">Aún no hay fotos. '+(SESION?'Sube alguna desde una galería o un lugar.':'')+'</p>';return;}
+  let fechaAnterior=undefined;
+  todas.forEach((f,j)=>{
+    if(f.fechaEfectiva!==fechaAnterior){
+      const cab=document.createElement('div');
+      cab.className='cab-cronologia entra-cron';
+      cab.textContent=fechaRelativa(f.fechaEfectiva);
+      cont.appendChild(cab);
+      fechaAnterior=f.fechaEfectiva;
+    }
+    const fila=document.createElement('button');
+    fila.className='fila-cronologia entra-cron';
+    fila.innerHTML=`
+      <div class="marco"><img loading="lazy" src="${miniDe(f)}" alt=""></div>
+      <div class="datos">
+        <b>${f.titulo||'Sin título'}</b>
+        <span>${f.lugarNombre?f.lugarNombre:'Sin ubicación'}${f.galeria?' · '+f.galeria:''}</span>
+      </div>
+      <svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>`;
+    fila.onclick=e=>abrirFotoCronologia(j,e.currentTarget);
+    cont.appendChild(fila);
+    celdasCronologia[j]=fila;
+  });
+  activarRevelado();
+}
+function abrirFotoCronologia(j,origenEl){
+  coleccion={tipo:'cronologia',titulo:'Cronología',fotos:todasLasFotosOrdenadas(),mostrarOrigen:true};
+  celdasColeccion=celdasCronologia;
+  abrirFoto(j,origenEl);
+}
+/* revelado suave al hacer scroll — "efectos con sentido" en vez de aparición brusca */
+function activarRevelado(){
+  const obs=new IntersectionObserver(entries=>{
+    entries.forEach(en=>{
+      if(en.isIntersecting){en.target.classList.add('visible');obs.unobserve(en.target);}
+    });
+  },{threshold:.08,rootMargin:'0px 0px -30px 0px'});
+  document.querySelectorAll('.entra-cron:not(.visible)').forEach(el=>obs.observe(el));
 }
 
 /* ═══ VISOR ═══ */
@@ -607,10 +716,13 @@ function compartirFoto(){
 function abrirHojaInfo(){
   const f=coleccion.fotos[fotoIdx];
   const fecha=f.fechaEfectiva?fechaMostrar(f.fechaEfectiva):null;
+  const contexto=(coleccion.tipo==='lugar'||coleccion.tipo==='cronologia')&&f.galeria?' · Galería '+f.galeria:'';
+  const ubicacion=coleccion.tipo==='cronologia'?(f.lugarNombre||'Sin ubicación'):null;
   hoja(`
     <div class="grupo">
-      <div class="cab-hoja"><b>${f.titulo||'Sin título'}</b><span>${coleccion.titulo}${f.galeria&&coleccion.tipo==='lugar'?' · Galería '+f.galeria:''}</span></div>
+      <div class="cab-hoja"><b>${f.titulo||'Sin título'}</b><span>${coleccion.titulo}${contexto}</span></div>
       ${fecha?`<div class="dato">Fecha <span>${fecha}</span></div>`:''}
+      ${ubicacion?`<div class="dato">Ubicación <span>${ubicacion}</span></div>`:''}
       ${f.exif?`<div class="dato">Ajustes <span>${f.exif}</span></div>`:''}
       <div class="dato">Original (antes) <span>${f.url_original?'Sí — se usa al comparar':'No subido (se simula)'}</span></div>
       ${SESION?`
@@ -646,12 +758,13 @@ function fabMapa(){
 
 /* ═══ arranque de datos ═══ */
 (async()=>{
-  try{
-    await cargarDatos();
-    renderTodo();
-  }catch(err){
+  const minimo=esperar(1100);
+  const datos=cargarDatos().catch(err=>{
     console.error(err);
-    document.dispatchEvent(new Event('DOMContentLoaded')); /* asegura que el diagnóstico se pinte */
     toast('Error cargando la app: '+err.message,6000);
-  }
+  });
+  await Promise.race([Promise.all([datos,minimo]),esperar(6000)]);
+  renderTodo();
+  $('arranque').classList.add('disparo');
+  setTimeout(()=>$('arranque').classList.add('fuera'),260);
 })();
