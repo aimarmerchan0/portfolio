@@ -14,9 +14,9 @@ let SESION = null;
 const _P = (id, w = 1200, h = 900) => `https://picsum.photos/id/${id}/${w}/${h}`;
 function datosDemo() {
   const L = (id, nombre, region, lat, lng) => ({ id, nombre, region, lat, lng });
-  const G = (id, nombre, anio, lugar_id, portada_url) => ({ id, nombre, anio, lugar_id, portada_url });
-  const F = (id, galeria_id, pic, titulo, vertical, exif, lugar_id = null) => ({
-    id, galeria_id, lugar_id, titulo, vertical, exif,
+  const G = (id, nombre, anio, lugar_id, portada_url, fecha = null) => ({ id, nombre, anio, lugar_id, portada_url, fecha });
+  const F = (id, galeria_id, pic, titulo, vertical, exif, lugar_id = null, fecha = null) => ({
+    id, galeria_id, lugar_id, titulo, vertical, exif, fecha,
     url: vertical ? _P(pic, 900, 1200) : _P(pic, 1400, 1000),
     miniatura: _P(pic, 300, 300),
     url_original: null, _pic: pic,
@@ -29,12 +29,12 @@ function datosDemo() {
     L("patagonia", "Patagonia", "Argentina", -49.3315, -72.8863),
   ];
   DATOS.galerias = [
-    G("g1", "Benidorm", "2025", "benidorm", _P(1069, 900, 1100)),
-    G("g2", "Cartucho", "2025", "benidorm", _P(1025, 900, 1100)),
-    G("g3", "Niebla temprana", "2024", "pirineos", _P(1018, 900, 1100)),
-    G("g4", "Gente que pasa", "2023", "lisboa", _P(1011, 900, 1100)),
-    G("g5", "Zoco y polvo", "2023", "marrakech", _P(1074, 900, 1100)),
-    G("g6", "Última luz", "2021", "patagonia", _P(1050, 900, 1100)),
+    G("g1", "Benidorm", "2025", "benidorm", _P(1069, 900, 1100), "2025-06-14"),
+    G("g2", "Cartucho", "2025", "benidorm", _P(1025, 900, 1100), "2025-08-02"),
+    G("g3", "Niebla temprana", "2024", "pirineos", _P(1018, 900, 1100), "2024-03-09"),
+    G("g4", "Gente que pasa", "2023", "lisboa", _P(1011, 900, 1100), "2023-05-21"),
+    G("g5", "Zoco y polvo", "2023", "marrakech", _P(1074, 900, 1100), "2023-11-03"),
+    G("g6", "Última luz", "2021", "patagonia", _P(1050, 900, 1100), "2021-01-17"),
   ];
   DATOS.fotos = [
     F("f1", "g1", 1069, "IMG_0272.jpg", 1, "f/2.8 · 1/640 · ISO 100 · 35mm"),
@@ -54,6 +54,8 @@ function datosDemo() {
     F("f15", "g5", 1080, "IMG_0411.jpg", 0, "f/8 · 1/640 · ISO 100 · 24mm"),
     F("f16", "g6", 1050, "IMG_0021.jpg", 0, "f/11 · 1/250 · ISO 100 · 24mm"),
     F("f17", "g6", 1057, "IMG_0027.jpg", 0, "f/9 · 1/320 · ISO 100 · 35mm"),
+    /* segunda visita a Benidorm, mismo lugar, fecha distinta — demuestra el timelapse */
+    F("f18", "g1", 1041, "IMG_0410.jpg", 0, "f/5.6 · 1/500 · ISO 100 · 24mm", "benidorm", "2026-03-22"),
   ];
 }
 
@@ -62,7 +64,7 @@ async function cargarDatos() {
   if (MODO_DEMO) { datosDemo(); return; }
   const [l, g, f] = await Promise.all([
     sb.from("lugares").select("*").order("nombre"),
-    sb.from("galerias").select("*").order("anio", { ascending: false }),
+    sb.from("galerias").select("*").order("fecha", { ascending: false, nullsFirst: false }).order("anio", { ascending: false }),
     sb.from("fotos").select("*").order("orden", { ascending: true }),
   ]);
   if (l.error || g.error || f.error) {
@@ -80,15 +82,95 @@ async function cargarDatos() {
 /* ─── consultas ─── */
 const lugarDe = id => DATOS.lugares.find(l => l.id === id);
 const galeriaDe = id => DATOS.galerias.find(g => g.id === id);
+function fechaEfectivaFoto(f){
+  if (f.fecha) return f.fecha;
+  const g = galeriaDe(f.galeria_id);
+  return (g && g.fecha) || null;
+}
+function fechaMostrar(fechaISO, anioTexto){
+  if (fechaISO){
+    const d = new Date(fechaISO + 'T00:00:00');
+    if (!isNaN(d)) return d.toLocaleDateString('es', { day:'numeric', month:'short', year:'numeric' });
+  }
+  return anioTexto || '';
+}
 const fotosDeGaleria = gid => DATOS.fotos.filter(f => f.galeria_id === gid)
-  .map(f => ({ ...f, galeria: (galeriaDe(gid) || {}).nombre }));
+  .map(f => ({ ...f, galeria: (galeriaDe(gid) || {}).nombre, fechaEfectiva: fechaEfectivaFoto(f) }));
 function lugarEfectivo(f) { const g = galeriaDe(f.galeria_id); return f.lugar_id || (g ? g.lugar_id : null); }
 function fotosDeLugar(lid) {
   return DATOS.fotos.filter(f => lugarEfectivo(f) === lid)
-    .map(f => ({ ...f, galeria: (galeriaDe(f.galeria_id) || {}).nombre }));
+    .map(f => ({ ...f, galeria: (galeriaDe(f.galeria_id) || {}).nombre, fechaEfectiva: fechaEfectivaFoto(f) }))
+    .sort((a, b) => {
+      if (a.fechaEfectiva && b.fechaEfectiva) return a.fechaEfectiva < b.fechaEfectiva ? -1 : 1;
+      if (a.fechaEfectiva) return -1;
+      if (b.fechaEfectiva) return 1;
+      return 0;
+    });
 }
 const miniDe = f => f.miniatura || f.url;
 const portadaDeGaleria = g => g.portada_url || (fotosDeGaleria(g.id)[0] || {}).url || "";
+
+/* ─── distancia entre coordenadas (para evitar lugares duplicados) ─── */
+function distanciaKm(lat1, lng1, lat2, lng2) {
+  const R = 6371, dLat = (lat2 - lat1) * Math.PI / 180, dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+function buscarLugarSimilar(nombre, lat, lng, excluirId = null) {
+  const n = (nombre || '').trim().toLowerCase();
+  return DATOS.lugares.find(l => {
+    if (l.id === excluirId) return false;
+    if (n && l.nombre.trim().toLowerCase() === n) return true;
+    if (lat != null && lng != null && l.lat != null && l.lng != null) {
+      return distanciaKm(lat, lng, l.lat, l.lng) < 1.5;
+    }
+    return false;
+  }) || null;
+}
+
+/* ─── buscar dirección (geocodificación con OpenStreetMap Nominatim, gratuita) ─── */
+async function buscarDireccion(consulta) {
+  const url = `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&q=${encodeURIComponent(consulta)}`;
+  try {
+    const res = await fetch(url, { headers: { 'Accept-Language': 'es' } });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    return data.map(r => {
+      const partes = r.display_name.split(',').map(s => s.trim());
+      return { nombre: partes[0], region: partes.slice(1, 4).join(', '), lat: parseFloat(r.lat), lng: parseFloat(r.lon), display: r.display_name };
+    });
+  } catch (err) {
+    console.error(err);
+    toast('No se pudo buscar la dirección: ' + err.message, 4000);
+    return [];
+  }
+}
+
+/* ─── comprimir imágenes en el propio dispositivo antes de subir (sube más rápido) ─── */
+function comprimirImagen(file, maxDim = 2400, calidad = 0.85) {
+  return new Promise(resolve => {
+    if (!file.type.startsWith('image/') || file.type === 'image/gif') { resolve(file); return; }
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width: w, height: h } = img;
+      if (w <= maxDim && h <= maxDim && file.size < 2 * 1024 * 1024) { resolve(file); return; }
+      const escala = Math.min(1, maxDim / Math.max(w, h));
+      w = Math.round(w * escala); h = Math.round(h * escala);
+      const cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      const ctx = cv.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      cv.toBlob(blob => {
+        if (!blob) { resolve(file); return; }
+        resolve(new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' }));
+      }, 'image/jpeg', calidad);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+}
 
 /* ─── escritura (solo con sesión) ─── */
 function requiereAdmin() {
@@ -112,9 +194,27 @@ async function dbDelete(tabla, id) {
   return true;
 }
 async function subirArchivo(file, carpeta) {
-  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+  const archivo = await comprimirImagen(file);
+  const ext = (archivo.name.split(".").pop() || "jpg").toLowerCase();
   const ruta = `${carpeta}/${crypto.randomUUID()}.${ext}`;
-  const { error } = await sb.storage.from(BUCKET).upload(ruta, file, { upsert: false });
-  if (error) { console.error(error); toast("Error al subir: " + error.message); return null; }
+  const { error } = await sb.storage.from(BUCKET).upload(ruta, archivo, { upsert: false });
+  if (error) { console.error(error); toast("Error al subir: " + error.message, 4500); return null; }
   return sb.storage.from(BUCKET).getPublicUrl(ruta).data.publicUrl;
+}
+
+/* ─── subir varios archivos a la vez (más rápido que uno a uno) ─── */
+async function subirVarios(files, carpeta, onProgreso) {
+  const CONCURRENCIA = 3;
+  const urls = new Array(files.length).fill(null);
+  let hechos = 0, cursor = 0;
+  async function siguiente() {
+    while (cursor < files.length) {
+      const i = cursor++;
+      urls[i] = await subirArchivo(files[i], carpeta);
+      hechos++;
+      if (onProgreso) onProgreso(hechos, files.length);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCIA, files.length) }, siguiente));
+  return urls;
 }

@@ -13,6 +13,7 @@ function pintarEstadoAdmin(){
   document.body.classList.toggle('admin',!!SESION);
   $('admin-estado').textContent=SESION?('Administrador · '+SESION.user.email):'Visitante';
   $('btn-admin').textContent=SESION?'Cerrar sesión':'Acceso administrador';
+  if(window.__diagActualizar)window.__diagActualizar(!!SESION);
   renderTodo();
   if(coleccion&&$('p-colec').classList.contains('abierta'))refrescarColeccion();
 }
@@ -54,7 +55,15 @@ function formLugar(lid){
   const l=lid?lugarDe(lid):{nombre:'',region:'',lat:'',lng:''};
   hoja(`
     <div class="grupo">
-      <div class="cab-hoja"><b>${lid?'Editar lugar':'Nuevo lugar'}</b><span>También puedes cerrar esto y tocar el mapa directamente</span></div>
+      <div class="cab-hoja"><b>${lid?'Editar lugar':'Nuevo lugar'}</b><span>Busca una dirección, o cierra esto y toca el mapa directamente</span></div>
+      <div class="campo">
+        <label>Buscar dirección</label>
+        <div class="doble">
+          <input id="in-lug-buscar" placeholder="Alicante, España" onkeydown="if(event.key==='Enter'){event.preventDefault();buscarDireccionForm();}">
+          <button class="principal" style="width:auto;margin:0;padding:12px 18px" onclick="buscarDireccionForm()">Buscar</button>
+        </div>
+        <div id="resultados-direccion"></div>
+      </div>
       <div class="campo"><label>Nombre</label><input id="in-lug-nombre" value="${l.nombre||''}" placeholder="Benidorm"></div>
       <div class="campo"><label>Región / país</label><input id="in-lug-region" value="${l.region||''}" placeholder="Alicante, España"></div>
       <div class="campo"><label>Coordenadas (lat, lng)</label>
@@ -64,9 +73,31 @@ function formLugar(lid){
         </div>
       </div>
       <button class="principal" onclick="guardarLugar('${lid||''}')">Guardar lugar</button>
-      <p class="nota-form">Consejo: busca el sitio en Google Maps, mantén pulsado sobre el punto y copia las coordenadas que aparecen (usa punto decimal, no coma).</p>
+      <p class="nota-form">La búsqueda de dirección rellena nombre, región y coordenadas automáticamente — puedes editarlas después.</p>
     </div>
     <button class="cancelar" onclick="cerrarHoja()">Cancelar</button>`);
+}
+async function buscarDireccionForm(){
+  const q=$('in-lug-buscar').value.trim();
+  if(!q){toast('Escribe una dirección o lugar para buscar');return;}
+  const cont=$('resultados-direccion');
+  cont.innerHTML='<div class="resultado-dir cargando">Buscando…</div>';
+  const resultados=await buscarDireccion(q);
+  if(!resultados.length){cont.innerHTML='<div class="resultado-dir cargando">Sin resultados — prueba con otro texto</div>';return;}
+  cont.innerHTML=resultados.map((r,i)=>`
+    <button class="resultado-dir" onclick="elegirDireccion(${i})">
+      <b>${r.nombre}</b><span>${r.region}</span>
+    </button>`).join('');
+  window.__resultadosDir=resultados;
+}
+function elegirDireccion(i){
+  const r=window.__resultadosDir[i];
+  if(!$('in-lug-nombre').value.trim())$('in-lug-nombre').value=r.nombre;
+  $('in-lug-region').value=r.region;
+  $('in-lug-lat').value=r.lat.toFixed(6);
+  $('in-lug-lng').value=r.lng.toFixed(6);
+  $('resultados-direccion').innerHTML='';
+  toast('Coordenadas rellenadas — revisa y guarda');
 }
 async function guardarLugar(lid){
   if(!requiereAdmin())return;
@@ -81,15 +112,40 @@ async function guardarLugar(lid){
     toast('Revisa el formato de las coordenadas — usa punto decimal, ej. 38.5342',4000);
     return;
   }
+  if(!lid){
+    const parecido=buscarLugarSimilar(nombre,lat,lng);
+    if(parecido){
+      cerrarHoja();
+      hoja(`
+        <div class="grupo">
+          <div class="cab-hoja"><b>Ya existe un lugar parecido</b><span>${parecido.nombre} · ${parecido.region||''}</span></div>
+          <button class="opcion" onclick="cerrarHoja();abrirLugar('${parecido.id}')">Usar «${parecido.nombre}» (recomendado)</button>
+          <button class="opcion" onclick="continuarGuardarLugar('${nombre.replace(/'/g,"\\'")}','${region.replace(/'/g,"\\'")}',${lat},${lng})">Crear de todas formas un lugar nuevo</button>
+        </div>
+        <button class="cancelar" onclick="cerrarHoja()">Cancelar</button>`);
+      return;
+    }
+  }
+  await continuarGuardarLugar(nombre,region,lat,lng,lid);
+}
+async function continuarGuardarLugar(nombre,region,lat,lng,lid=''){
   const fila={nombre,region,lat,lng};
   cerrarHoja();subiendo('Guardando lugar…');
-  let ok;
+  let ok,nuevo=null;
   if(lid)ok=await dbUpdate('lugares',lid,fila);
-  else ok=await dbInsert('lugares',fila);
+  else {nuevo=await dbInsert('lugares',fila);ok=!!nuevo;}
   subidaLista();
-  if(!ok)return; /* el error concreto ya se mostró en toast */
+  if(!ok)return;
   await cargarDatos();renderTodo();
-  toast(lat!=null&&lng!=null?'Lugar guardado y ubicado en el mapa':'Lugar guardado — sin coordenadas, no aparecerá en el mapa hasta que se las añadas');
+  if(nuevo){
+    hoja(`
+      <div class="grupo">
+        <div class="cab-hoja"><b>Lugar creado</b><span>${nombre}</span></div>
+        <button class="opcion" onclick="cerrarHoja();subirFotosALugar('${nuevo.id}')">Añadir fotos ahora</button>
+        <button class="opcion" onclick="cerrarHoja();abrirLugar('${nuevo.id}')">Ver el lugar</button>
+      </div>
+      <button class="cancelar" onclick="cerrarHoja()">Ahora no</button>`);
+  }else toast(lat!=null&&lng!=null?'Lugar guardado y ubicado en el mapa':'Lugar guardado — sin coordenadas, no aparecerá en el mapa hasta que se las añadas');
 }
 function fijarEnMapa(lid){
   lugarPendiente={
@@ -157,13 +213,14 @@ async function eliminarLugar(lid){
 
 /* ── GALERÍAS ── */
 function formGaleria(gid){
-  const g=gid?galeriaDe(gid):{nombre:'',anio:new Date().getFullYear()+'',lugar_id:''};
+  const g=gid?galeriaDe(gid):{nombre:'',anio:new Date().getFullYear()+'',lugar_id:'',fecha:''};
   const ops=DATOS.lugares.map(l=>`<option value="${l.id}" ${l.id===g.lugar_id?'selected':''}>${l.nombre}</option>`).join('');
   hoja(`
     <div class="grupo">
       <div class="cab-hoja"><b>${gid?'Editar galería':'Nueva galería'}</b><span>Después podrás subir fotos desde dentro</span></div>
       <div class="campo"><label>Nombre</label><input id="in-gal-nombre" value="${g.nombre||''}" placeholder="Benidorm"></div>
-      <div class="campo"><label>Año</label><input id="in-gal-anio" inputmode="numeric" value="${g.anio||''}" placeholder="2026"></div>
+      <div class="campo"><label>Fecha de la visita</label><input id="in-gal-fecha" type="date" value="${g.fecha||''}"></div>
+      <div class="campo"><label>Año (si no sabes la fecha exacta)</label><input id="in-gal-anio" inputmode="numeric" value="${g.anio||''}" placeholder="2026"></div>
       <div class="campo"><label>Lugar</label>
         <select id="in-gal-lugar"><option value="">— Sin lugar —</option>${ops}</select>
       </div>
@@ -178,6 +235,7 @@ async function guardarGaleria(gid){
   const fila={
     nombre:$('in-gal-nombre').value.trim(),
     anio:$('in-gal-anio').value.trim(),
+    fecha:$('in-gal-fecha').value||null,
     lugar_id:$('in-gal-lugar').value||null,
   };
   if(!fila.nombre){toast('La galería necesita un nombre');return;}
@@ -226,24 +284,52 @@ async function usarComoPortada(fid){
 /* ── FOTOS ── */
 function subirFotosAGaleria(){
   if(!requiereAdmin())return;
-  if(!coleccion||coleccion.tipo!=='galeria')return;
+  if(!coleccion)return;
+  if(coleccion.tipo==='lugar'){subirFotosALugar(coleccion.id);return;}
   const input=$('input-fotos');
   input.onchange=async()=>{
     const files=[...input.files];input.value='';
     if(!files.length)return;
     const gid=coleccion.id;
-    let i=0;
-    for(const file of files){
-      i++;subiendo(`Subiendo foto ${i} de ${files.length}…`);
-      const url=await subirArchivo(file,gid);
-      if(!url)continue;
+    subiendo(`Subiendo 0 de ${files.length}…`);
+    const urls=await subirVarios(files,gid,(hechos,total)=>subiendo(`Subiendo ${hechos} de ${total}…`));
+    let creadas=0;
+    for(let i=0;i<files.length;i++){
+      if(!urls[i])continue;
       await dbInsert('fotos',{
-        galeria_id:gid,titulo:file.name,url,
+        galeria_id:gid,titulo:files[i].name,url:urls[i],
         vertical:null,exif:'',orden:Date.now()+i,
       });
+      creadas++;
     }
     await cargarDatos();renderTodo();refrescarColeccion();subidaLista();
-    toast(`${i} foto${i>1?'s':''} subida${i>1?'s':''}`);
+    toast(`${creadas} foto${creadas!==1?'s':''} subida${creadas!==1?'s':''}`);
+  };
+  input.click();
+}
+function subirFotosALugar(lugarId){
+  if(!requiereAdmin())return;
+  const input=$('input-fotos');
+  input.onchange=async()=>{
+    const files=[...input.files];input.value='';
+    if(!files.length)return;
+    subiendo(`Subiendo 0 de ${files.length}…`);
+    const urls=await subirVarios(files,'lugar-'+lugarId,(hechos,total)=>subiendo(`Subiendo ${hechos} de ${total}…`));
+    let creadas=0;
+    const hoy=new Date().toISOString().slice(0,10);
+    for(let i=0;i<files.length;i++){
+      if(!urls[i])continue;
+      await dbInsert('fotos',{
+        galeria_id:null,lugar_id:lugarId,titulo:files[i].name,url:urls[i],
+        vertical:null,exif:'',orden:Date.now()+i,fecha:hoy,
+      });
+      creadas++;
+    }
+    await cargarDatos();renderTodo();
+    if(coleccion&&coleccion.id===lugarId)refrescarColeccion();
+    else abrirLugar(lugarId);
+    subidaLista();
+    toast(`${creadas} foto${creadas!==1?'s':''} añadida${creadas!==1?'s':''} a este lugar`);
   };
   input.click();
 }
@@ -254,6 +340,7 @@ function formFoto(fid){
     <div class="grupo">
       <div class="cab-hoja"><b>Editar foto</b><span>${f.titulo||''}</span></div>
       <div class="campo"><label>Título / archivo</label><input id="in-f-titulo" value="${f.titulo||''}"></div>
+      <div class="campo"><label>Fecha de esta foto (opcional, si es distinta a la galería)</label><input id="in-f-fecha" type="date" value="${f.fecha||''}"></div>
       <div class="campo"><label>EXIF (opcional)</label><input id="in-f-exif" value="${f.exif||''}" placeholder="f/2.8 · 1/640 · ISO 100 · 35mm"></div>
       <div class="campo"><label>Lugar propio (si es distinto al de la galería)</label>
         <select id="in-f-lugar"><option value="">— El de la galería —</option>${ops}</select>
@@ -267,6 +354,7 @@ async function guardarFoto(fid){
   cerrarHoja();subiendo('Guardando…');
   await dbUpdate('fotos',fid,{
     titulo:$('in-f-titulo').value.trim(),
+    fecha:$('in-f-fecha').value||null,
     exif:$('in-f-exif').value.trim(),
     lugar_id:$('in-f-lugar').value||null,
   });
@@ -281,7 +369,8 @@ function subirOriginal(fid){
     if(!file)return;
     subiendo('Subiendo original…');
     const f=DATOS.fotos.find(x=>x.id===fid);
-    const url=await subirArchivo(file,f.galeria_id+'/originales');
+    const carpeta=f.galeria_id?f.galeria_id+'/originales':'lugar-'+f.lugar_id+'/originales';
+    const url=await subirArchivo(file,carpeta);
     if(url){await dbUpdate('fotos',fid,{url_original:url});await cargarDatos();refrescarColeccion();}
     subidaLista();
     toast('Original guardado — Antes/Después usará la foto real');

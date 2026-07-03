@@ -276,16 +276,18 @@ function abrirColeccion(c){
   $('col-sub').textContent=c.sub;
   $('col-titulo-mini').textContent=c.titulo;
   $('col-n').textContent=c.fotos.length;
-  $('fab-colec').classList.toggle('visible',c.tipo==='galeria');
+  $('fab-colec').classList.toggle('visible',c.tipo==='galeria'||c.tipo==='lugar');
   const grid=$('col-grid');grid.innerHTML='';
   if(!c.fotos.length)grid.innerHTML='<p class="vacio" style="columns:1">Sin fotos todavía.</p>';
   c.fotos.forEach((f,j)=>{
     const cel=document.createElement('div');
     cel.className='celda';
     cel.style.animationDelay=(j*.05+.15)+'s';
+    const fecha=f.fechaEfectiva?fechaMostrar(f.fechaEfectiva):'';
+    const etiqueta=c.mostrarOrigen?[f.galeria,fecha].filter(Boolean).join(' · '):'';
     cel.innerHTML=`<img loading="lazy" src="${f.url}" alt="${f.titulo||''}">
-      ${c.mostrarOrigen&&f.galeria?`<span class="de">${f.galeria}</span>`:''}`;
-    cel.onclick=()=>abrirFoto(j);
+      ${etiqueta?`<span class="de">${etiqueta}</span>`:''}`;
+    cel.onclick=e=>abrirFoto(j,e.currentTarget);
     grid.appendChild(cel);
   });
   $('col-scroll').scrollTop=0;
@@ -334,6 +336,7 @@ function hojaLugar(lid){
       <div class="cab-hoja"><b>${l.nombre}</b><span>${l.region||''} · ${n} fotos · ${(+l.lat).toFixed(4)}, ${(+l.lng).toFixed(4)}</span></div>
       <button class="opcion" onclick="cerrarHoja();abrirLugar('${lid}')">Ver las ${n} fotos</button>
       ${SESION?`
+        <button class="opcion" onclick="cerrarHoja();subirFotosALugar('${lid}')">Añadir fotos a este lugar</button>
         <button class="opcion" onclick="cerrarHoja();formLugar('${lid}')">Editar lugar</button>
         <button class="opcion" onclick="cerrarHoja();reubicarLugar('${lid}')">Cambiar ubicación en el mapa</button>
         <button class="opcion peligro" onclick="eliminarLugar('${lid}')">Eliminar lugar</button>`:''}
@@ -341,10 +344,20 @@ function hojaLugar(lid){
     <button class="cancelar" onclick="cerrarHoja()">Cancelar</button>`);
 }
 
+/* rect donde realmente aterriza el panel — en iPad es una columna centrada, no toda la pantalla */
+function rectPanelDestino(){
+  const w=innerWidth,h=innerHeight;
+  if(w>=700){
+    const pw=Math.min(520,w);
+    return {left:(w-pw)/2,top:0,width:pw,height:h};
+  }
+  return {left:0,top:0,width:w,height:h};
+}
+
 /* ═══ VISOR ═══ */
-let fotoIdx=0,slides=[],pulgs=[],cmpActivo=false;
-const carro=$('foto-carro'),tira=$('tira');
-function abrirFoto(j){
+let fotoIdx=0,slides=[],pulgs=[],celdas=[],cmpActivo=false;
+const carro=$('foto-carro'),tira=$('tira'),pFotoEl=$('p-foto');
+function abrirFoto(j,origenEl=null){
   fotoIdx=j;
   carro.innerHTML='';tira.innerHTML='';
   coleccion.fotos.forEach((f,k)=>{
@@ -360,14 +373,60 @@ function abrirFoto(j){
     tira.appendChild(t);
   });
   slides=[...carro.children];pulgs=[...tira.children];
+  celdas=[...($('col-grid').children)];
   irAFoto(j,true);
-  $('p-foto').classList.add('abierta');
+
+  /* efecto FLIP: crece desde la miniatura tocada hasta el panel de destino */
+  const reducido=matchMedia('(prefers-reduced-motion:reduce)').matches;
+  if(origenEl&&!reducido){
+    const r=origenEl.getBoundingClientRect();
+    const rv=rectPanelDestino();
+    const esc={x:r.width/rv.width,y:r.height/rv.height};
+    const tx=(r.left+r.width/2)-(rv.left+rv.width/2);
+    const ty=(r.top+r.height/2)-(rv.top+rv.height/2);
+    pFotoEl.style.transition='none';
+    pFotoEl.style.transformOrigin='center';
+    pFotoEl.style.transform=`translate(${tx}px,${ty}px) scale(${esc.x},${esc.y})`;
+    pFotoEl.style.borderRadius='16px';
+    pFotoEl.style.opacity='.4';
+    pFotoEl.classList.add('abierta');
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      pFotoEl.style.transition='transform .5s cubic-bezier(.22,1,.36,1), opacity .35s ease, border-radius .5s';
+      pFotoEl.style.transform='none';
+      pFotoEl.style.borderRadius='0';
+      pFotoEl.style.opacity='1';
+    }));
+    setTimeout(()=>{pFotoEl.style.transition='';pFotoEl.style.transformOrigin='';},560);
+  }else{
+    pFotoEl.style.transform='';pFotoEl.style.opacity='';pFotoEl.style.borderRadius='';
+    pFotoEl.classList.add('abierta');
+  }
   document.body.classList.add('nivel2');
 }
 function volverDeFoto(){
   quitarComparador();
-  $('p-foto').classList.remove('abierta');
-  document.body.classList.remove('nivel2');
+  const destino=celdas[fotoIdx];
+  const reducido=matchMedia('(prefers-reduced-motion:reduce)').matches;
+  if(destino&&!reducido){
+    const r=destino.getBoundingClientRect();
+    const rv=rectPanelDestino();
+    const esc={x:r.width/rv.width,y:r.height/rv.height};
+    const tx=(r.left+r.width/2)-(rv.left+rv.width/2);
+    const ty=(r.top+r.height/2)-(rv.top+rv.height/2);
+    pFotoEl.style.transition='transform .42s cubic-bezier(.32,.1,.4,1), opacity .4s ease, border-radius .42s';
+    pFotoEl.style.transformOrigin='center';
+    pFotoEl.style.transform=`translate(${tx}px,${ty}px) scale(${esc.x},${esc.y})`;
+    pFotoEl.style.borderRadius='16px';
+    pFotoEl.style.opacity='.3';
+    setTimeout(()=>{
+      pFotoEl.classList.remove('abierta');
+      pFotoEl.style.transition='';pFotoEl.style.transform='';pFotoEl.style.opacity='';pFotoEl.style.borderRadius='';pFotoEl.style.transformOrigin='';
+      document.body.classList.remove('nivel2');
+    },420);
+  }else{
+    pFotoEl.classList.remove('abierta');
+    document.body.classList.remove('nivel2');
+  }
 }
 function irAFoto(k,inmediato=false){
   fotoIdx=k;
@@ -414,7 +473,10 @@ zona.addEventListener('touchstart',()=>{
   $('peek').classList.remove('visible');
 },{passive:true}));
 
-/* comparador antes/después: usa el original real si existe */
+/* comparador antes/después: usa el original real si existe.
+   Se fija el tamaño del marco ANTES de intercambiar imágenes, para que
+   "antes" y "después" se vean exactamente en el mismo tamaño aunque
+   el archivo original tenga otras dimensiones o proporción. */
 function alternarComparador(){cmpActivo?quitarComparador():ponerComparador();}
 function ponerComparador(){
   cmpActivo=true;
@@ -422,20 +484,44 @@ function ponerComparador(){
   const f=coleccion.fotos[fotoIdx];
   const marco=slides[fotoIdx].querySelector('.marco');
   const base=marco.querySelector('img');
+
+  /* 1. fija el tamaño actual del marco en píxeles para que no cambie al meter otra imagen */
+  const r=marco.getBoundingClientRect();
+  marco.style.width=r.width+'px';
+  marco.style.height=r.height+'px';
+
+  /* 2. muestra el "antes" en la capa base */
   if(f.url_original){base.dataset.editada=base.src;base.src=f.url_original;}
   else base.classList.add('filtro-raw');
+
+  /* 3. capa "después" superpuesta, con la MISMA técnica de encaje (contain) que el resto de la app */
   marco.insertAdjacentHTML('beforeend',`
-    <div class="cmp-capa" style="--pos:50%"><img src="${f.url}" alt=""></div>
-    <div class="cmp-div" style="--pos:50%"><div class="asa">⟨⟩</div></div>
+    <div class="cmp-capa" style="--pos:0%"><img src="${f.url}" alt=""></div>
+    <div class="cmp-div" style="--pos:0%"><div class="asa">⟨⟩</div></div>
     <span class="cmp-tag a">Antes</span><span class="cmp-tag b">Después</span>`);
   const capa=marco.querySelector('.cmp-capa'),divi=marco.querySelector('.cmp-div');
+
+  /* 4. barrido de entrada suave, de 0% a 50% */
+  capa.style.transition='clip-path .7s cubic-bezier(.22,1,.36,1)';
+  divi.style.transition='left .7s cubic-bezier(.22,1,.36,1)';
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    capa.style.setProperty('--pos','50%');
+    divi.style.setProperty('--pos','50%');
+  }));
+  setTimeout(()=>{capa.style.transition='';divi.style.transition='';},720);
+
+  /* 5. arrastre manual, fluido y 1:1 con el dedo */
   let arr=false;
   const mover=x=>{
-    const r=marco.getBoundingClientRect();
-    const pos=Math.min(96,Math.max(4,(x-r.left)/r.width*100))+'%';
+    const rr=marco.getBoundingClientRect();
+    const pos=Math.min(96,Math.max(4,(x-rr.left)/rr.width*100))+'%';
     capa.style.setProperty('--pos',pos);divi.style.setProperty('--pos',pos);
   };
-  marco.onpointerdown=e=>{arr=true;marco.setPointerCapture(e.pointerId);mover(e.clientX);};
+  marco.onpointerdown=e=>{
+    arr=true;marco.setPointerCapture(e.pointerId);
+    capa.style.transition='';divi.style.transition='';
+    mover(e.clientX);
+  };
   marco.onpointermove=e=>{if(arr)mover(e.clientX);};
   marco.onpointerup=marco.onpointercancel=()=>arr=false;
   toast(f.url_original?'Comparando con el archivo original':'Arrastra el divisor para comparar');
@@ -451,6 +537,7 @@ function quitarComparador(){
     if(img.dataset.editada){img.src=img.dataset.editada;delete img.dataset.editada;}
     img.classList.remove('filtro-raw');
     m.onpointerdown=m.onpointermove=m.onpointerup=null;
+    m.style.width='';m.style.height='';
   });
 }
 function compartirFoto(){
@@ -460,15 +547,17 @@ function compartirFoto(){
 }
 function abrirHojaInfo(){
   const f=coleccion.fotos[fotoIdx];
+  const fecha=f.fechaEfectiva?fechaMostrar(f.fechaEfectiva):null;
   hoja(`
     <div class="grupo">
       <div class="cab-hoja"><b>${f.titulo||'Sin título'}</b><span>${coleccion.titulo}${f.galeria&&coleccion.tipo==='lugar'?' · Galería '+f.galeria:''}</span></div>
+      ${fecha?`<div class="dato">Fecha <span>${fecha}</span></div>`:''}
       ${f.exif?`<div class="dato">Ajustes <span>${f.exif}</span></div>`:''}
       <div class="dato">Original (antes) <span>${f.url_original?'Sí — se usa al comparar':'No subido (se simula)'}</span></div>
       ${SESION?`
-        <button class="opcion" onclick="cerrarHoja();formFoto('${f.id}')">Editar título / EXIF / lugar</button>
+        <button class="opcion" onclick="cerrarHoja();formFoto('${f.id}')">Editar título / fecha / EXIF / lugar</button>
         <button class="opcion" onclick="cerrarHoja();subirOriginal('${f.id}')">Subir foto original (antes)</button>
-        <button class="opcion" onclick="cerrarHoja();usarComoPortada('${f.id}')">Usar como portada de la galería</button>
+        ${f.galeria_id?`<button class="opcion" onclick="cerrarHoja();usarComoPortada('${f.id}')">Usar como portada de la galería</button>`:''}
         <button class="opcion peligro" onclick="eliminarFoto('${f.id}')">Eliminar foto</button>`:''}
     </div>
     <button class="cancelar" onclick="cerrarHoja()">Cerrar</button>`);
