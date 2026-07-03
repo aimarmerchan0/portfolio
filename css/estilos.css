@@ -205,6 +205,36 @@ body.admin .cab-raiz .admin-chip{display:inline-flex}
 .lema-pie span{font-family:'Archivo',sans-serif;font-stretch:110%;font-size:10px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:var(--gris)}
 .vacio{padding:26px 22px;color:var(--gris);font-size:14px;text-align:center}
 
+/* ═══ preview de Cronología en Inicio ═══ */
+.carrusel-cron{display:flex;gap:10px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:2px 22px 12px}
+.carrusel-cron::-webkit-scrollbar{display:none}
+.foto-mini-cron{flex:0 0 auto;width:104px;aspect-ratio:1;border-radius:14px;overflow:hidden;position:relative;transition:transform .25s var(--rebote)}
+.foto-mini-cron:active{transform:scale(.93)}
+.foto-mini-cron::after{content:'';position:absolute;inset:0;background:linear-gradient(transparent 50%,rgba(10,10,9,.65))}
+.foto-mini-cron span{position:absolute;left:8px;bottom:7px;right:8px;z-index:2;color:#FAFAF8;font-size:10px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ═══ CRONOLOGÍA (pantalla completa) ═══ */
+#cronologia-lista{padding:8px 22px calc(var(--inf) + 40px)}
+.cab-cronologia{
+  font-family:'Archivo',sans-serif;font-stretch:115%;font-weight:800;text-transform:uppercase;
+  font-size:15px;letter-spacing:.02em;padding:22px 2px 10px;
+}
+.cab-cronologia:first-child{padding-top:6px}
+.fila-cronologia{
+  display:flex;align-items:center;gap:14px;width:100%;padding:10px 2px;
+  border-bottom:1px solid var(--linea);text-align:left;
+}
+.fila-cronologia .marco{width:60px;height:60px;border-radius:12px;overflow:hidden;flex:0 0 auto;background:var(--fondo2)}
+.fila-cronologia .datos{flex:1;min-width:0}
+.fila-cronologia .datos b{display:block;font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fila-cronologia .datos span{font-size:12.5px;color:var(--gris);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;margin-top:1px}
+.fila-cronologia svg{width:15px;height:15px;stroke:var(--gris2);stroke-width:2.2;fill:none;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+.fila-cronologia:active{background:var(--fondo2)}
+
+/* revelado suave al hacer scroll */
+.entra-cron{opacity:0;transform:translateY(18px);transition:opacity .6s ease,transform .6s cubic-bezier(.22,1,.36,1)}
+.entra-cron.visible{opacity:1;transform:none}
+
 /* ═══ GALERÍAS ═══ */
 .lista-galerias{padding:12px 18px calc(var(--inf) + 110px);display:flex;flex-direction:column;gap:18px}
 .tarjeta-galeria{
@@ -471,6 +501,7 @@ body.admin #fab-colec.visible{display:flex}
 .resultado-dir b{display:block;font-size:14.5px;font-weight:600}
 .resultado-dir span{display:block;font-size:12.5px;color:var(--gris);margin-top:2px}
 .resultado-dir.cargando{color:var(--gris);font-size:13px;background:none;padding:8px 4px}
+.resultado-cab{font-family:'Archivo',sans-serif;font-stretch:110%;font-size:9.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--gris);padding:10px 4px 6px}
 #hoja .principal{
   display:block;width:calc(100% - 36px);margin:6px 18px 16px;
   background:var(--tinta);color:#FAFAF8;border-radius:13px;padding:14px;
