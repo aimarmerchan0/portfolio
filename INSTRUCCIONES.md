@@ -104,14 +104,23 @@ En **Settings → API** copia:
 
 ---
 
-## 1.5 · Migración: añadir fechas (ejecutar una sola vez)
+## 1.5 · Migración: fechas en fotos y orden en galerías (ejecutar una sola vez)
 
-Si ya creaste las tablas antes de esta versión, ve a **SQL Editor → New query** y ejecuta esto para añadir las columnas de fecha (no borra nada de lo que ya tengas):
+Si ya creaste las tablas antes de esta versión, ve a **SQL Editor → New query** y ejecuta esto completo:
 
 ```sql
-alter table galerias add column if not exists fecha date;
 alter table fotos    add column if not exists fecha date;
+alter table galerias add column if not exists orden bigint;
+
+-- deja las galerías existentes ordenadas por fecha de creación, para no dejarlas todas mezcladas
+update galerias set orden = extract(epoch from creado)*1000 where orden is null;
+
+-- MUY IMPORTANTE: sin esto, Supabase puede seguir "sin ver" las columnas nuevas
+-- durante un rato y las fechas parecerán no guardarse aunque el SQL se ejecutara bien.
+notify pgrst, 'reload schema';
 ```
+
+Si después de ejecutar esto las fechas siguen sin guardarse, espera 1 minuto (a veces el aviso tarda en propagarse) y vuelve a intentarlo.
 
 ---
 
@@ -140,11 +149,15 @@ Todo lo de abajo **solo es visible con tu sesión iniciada** — un visitante no
 | Formulario de lugar | **Buscar por dirección** ("Alicante, España") y rellenar coordenadas automáticamente |
 | Al crear un lugar | Te ofrece subir fotos a ese lugar inmediatamente |
 | Tarjeta de lugar / pin | Editar, **añadir fotos directamente al lugar** (sin necesidad de galería), cambiar ubicación, eliminar |
-| Galerías → botón **+** | Crear galería (nombre, **fecha exacta o año**, lugar) |
+| Galerías → botón **+** | Crear galería (nombre, año orientativo, y lugar — buscando entre los que ya tienes o escribiendo una dirección nueva) |
+| Galerías → **Reordenar** | Cambiar el orden en que se listan las galerías, con flechas ↑↓ |
 | Tarjeta de galería → ··· | Editar, cambiar portada, eliminar |
-| Dentro de una galería o un lugar → **+** | **Subir varias fotos a la vez** (se comprimen automáticamente para subir más rápido) |
+| Dentro de una galería o un lugar → **+** | **Subir varias fotos a la vez**, indicando la fecha del lote — se comprimen y generan una miniatura ligera automáticamente para que todo cargue rápido |
+| Dentro de una galería → **Reordenar** | Cambiar el orden de las fotos con flechas ↑↓ |
 | Una foto → Info | Editar título/**fecha**/EXIF/lugar propio, **subir el original (antes)**, usarla de portada, eliminar |
-| Vista de un lugar | Las fotos de todas sus visitas se muestran **ordenadas por fecha**, como una línea de tiempo — perfecto para volver al mismo sitio en épocas distintas sin duplicar el lugar |
+| Menú → **Cronología** | Todas tus fotos de cualquier galería o lugar, ordenadas de más reciente a más antigua, agrupadas por fecha, cada una con su ubicación (o "Sin ubicación" si no tiene) |
+
+**Las fechas viven en las fotos, no en las galerías** — una galería es solo una colección con nombre; puedes subirle fotos en visitas o temporadas distintas, cada tanda con su propia fecha, y la Cronología las ordenará todas correctamente sin duplicar el lugar.
 
 El botón **Antes/Después** del visor usa el original real si lo has subido (ambas versiones se ven siempre al mismo tamaño, sea cual sea el archivo); si no, lo simula. Al tocar una foto, el visor se abre con un efecto de zoom desde la miniatura.
 
