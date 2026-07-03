@@ -13,6 +13,7 @@ function pintarEstadoAdmin(){
   document.body.classList.toggle('admin',!!SESION);
   $('admin-estado').textContent=SESION?('Administrador · '+SESION.user.email):'Visitante';
   $('btn-admin').textContent=SESION?'Cerrar sesión':'Acceso administrador';
+  if($('btn-miniaturas'))$('btn-miniaturas').style.display=SESION?'block':'none';
   if(window.__diagActualizar)window.__diagActualizar(!!SESION);
   renderTodo();
   if(coleccion&&$('p-colec').classList.contains('abierta'))refrescarColeccion();
@@ -490,6 +491,37 @@ async function eliminarFoto(fid){
   await dbDelete('fotos',fid);
   await cargarDatos();renderTodo();
   volverDeFoto();refrescarColeccion();subidaLista();
+}
+
+/* ── mantenimiento: generar miniaturas para fotos subidas antes de esta función ── */
+async function generarMiniaturasFaltantes(){
+  if(!requiereAdmin())return;
+  const faltan=DATOS.fotos.filter(f=>!f.miniatura);
+  if(!faltan.length){toast('Todas las fotos ya tienen miniatura — nada que hacer');return;}
+  if(!confirm(`Se generarán miniaturas ligeras para ${faltan.length} foto(s) antiguas, para que carguen mucho más rápido. Puede tardar un rato. ¿Continuar?`))return;
+  let hechas=0,fallidas=0;
+  for(const f of faltan){
+    subiendo(`Generando miniaturas… ${hechas+fallidas} de ${faltan.length}`);
+    try{
+      const res=await fetch(f.url);
+      if(!res.ok)throw new Error('HTTP '+res.status);
+      const blob=await res.blob();
+      const file=new File([blob],'foto.jpg',{type:blob.type||'image/jpeg'});
+      const mini=await generarMiniatura(file);
+      if(!mini)throw new Error('no se pudo generar');
+      const carpeta=f.galeria_id?f.galeria_id:('lugar-'+(f.lugar_id||'suelto'));
+      const url=await _subirUnArchivo(mini,carpeta,'_mini');
+      if(!url)throw new Error('no se pudo subir');
+      const ok=await dbUpdate('fotos',f.id,{miniatura:url});
+      ok?hechas++:fallidas++;
+    }catch(err){
+      console.error('miniatura fallida para',f.id,err);
+      fallidas++;
+    }
+  }
+  await cargarDatos();renderTodo();
+  subidaLista();
+  toast(`Miniaturas generadas: ${hechas}${fallidas?` — ${fallidas} fallaron`:''}`,5000);
 }
 
 /* restaurar sesión al abrir */

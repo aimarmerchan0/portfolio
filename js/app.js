@@ -123,8 +123,10 @@ function alternarReordenarGalerias(){
 function renderGalerias(){
   const cont=$('lista-galerias');cont.innerHTML='';
   const btnR=$('btn-reordenar-gal');
-  btnR.style.display=(SESION&&DATOS.galerias.length>1)?'inline-flex':'none';
-  btnR.textContent=modoReordenarGalerias?'Listo':'Reordenar';
+  if(btnR){
+    btnR.style.display=(SESION&&DATOS.galerias.length>1)?'inline-flex':'none';
+    btnR.textContent=modoReordenarGalerias?'Listo':'Reordenar';
+  }
   if(!DATOS.galerias.length){cont.innerHTML='<p class="vacio">Aún no hay galerías. '+(SESION?'Usa el botón + para crear la primera.':'')+'</p>';return;}
 
   if(modoReordenarGalerias){
@@ -351,8 +353,11 @@ function abrirColeccion(c){
   $('col-titulo-mini').textContent=c.titulo;
   $('col-n').textContent=c.fotos.length;
   $('fab-colec').classList.toggle('visible',(c.tipo==='galeria'||c.tipo==='lugar')&&!modoReordenar);
-  $('btn-reordenar').style.display=(SESION&&c.tipo==='galeria'&&c.fotos.length>1)?'inline-flex':'none';
-  $('btn-reordenar').textContent=modoReordenar?'Listo':'Reordenar';
+  const btnRF=$('btn-reordenar');
+  if(btnRF){
+    btnRF.style.display=(SESION&&c.tipo==='galeria'&&c.fotos.length>1)?'inline-flex':'none';
+    btnRF.textContent=modoReordenar?'Listo':'Reordenar';
+  }
   pintarGridColeccion();
   $('col-scroll').scrollTop=0;
   $('col-topbar').classList.remove('solida');
@@ -363,7 +368,7 @@ let modoReordenar=false,celdasColeccion=[];
 function alternarReordenar(){
   modoReordenar=!modoReordenar;
   $('fab-colec').classList.toggle('visible',(coleccion.tipo==='galeria'||coleccion.tipo==='lugar')&&!modoReordenar);
-  $('btn-reordenar').textContent=modoReordenar?'Listo':'Reordenar';
+  if($('btn-reordenar'))$('btn-reordenar').textContent=modoReordenar?'Listo':'Reordenar';
   pintarGridColeccion();
 }
 function pintarGridColeccion(){
@@ -617,6 +622,10 @@ function irAFoto(k,inmediato=false){
   $('foto-num').textContent=`${k+1} de ${coleccion.fotos.length} · ${coleccion.titulo}`;
   pulgs.forEach((p,x)=>p.classList.toggle('viva',x===k));
   if(pulgs[k])pulgs[k].scrollIntoView({behavior:inmediato?'auto':'smooth',inline:'center',block:'nearest'});
+  /* el botón Antes/Después solo aparece si esta foto tiene un original subido */
+  const tieneOriginal=!!f.url_original;
+  $('btn-cmp').style.display=tieneOriginal?'':'none';
+  $('sep-cmp').style.display=tieneOriginal?'':'none';
 }
 let sx=null,sy=null;
 const zona=$('foto-zona');
@@ -703,7 +712,11 @@ function ponerComparador(){
   };
   marco.onpointermove=e=>{if(arr)mover(e.clientX);};
   marco.onpointerup=marco.onpointercancel=()=>arr=false;
-  toast(f.url_original?'Comparando con el archivo original':'Arrastra el divisor para comparar');
+  if(f.url_original&&f.url_original===f.url){
+    toast('El original y la foto editada parecen ser el mismo archivo — súbelo de nuevo desde Info',4500);
+  }else{
+    toast(f.url_original?'Comparando con el archivo original':'Arrastra el divisor para comparar');
+  }
 }
 function quitarComparador(){
   if(!cmpActivo)return;
@@ -767,6 +780,27 @@ function fabMapa(){
     <button class="cancelar" onclick="cerrarHoja()">Cancelar</button>`);
 }
 
+/* precarga silenciosa, de una en una y sin prisa, para que al entrar en
+   Galerías/Mapa/Cronología las imágenes ya estén en caché del navegador */
+function precargarMiniaturas(){
+  const idle=window.requestIdleCallback||(fn=>setTimeout(fn,300));
+  idle(()=>{
+    const vistos=new Set();
+    const urls=[];
+    const agregar=u=>{ if(u&&!vistos.has(u)){vistos.add(u);urls.push(u);} };
+    DATOS.fotos.forEach(f=>agregar(miniDe(f)));
+    DATOS.galerias.forEach(g=>agregar(portadaDeGaleria(g)));
+    let i=0;
+    function siguiente(){
+      if(i>=urls.length)return;
+      const img=new Image();
+      img.onload=img.onerror=()=>{ i++; idle(siguiente); };
+      img.src=urls[i];
+    }
+    siguiente();
+  });
+}
+
 /* ═══ arranque de datos ═══ */
 (async()=>{
   const minimo=esperar(1100);
@@ -778,4 +812,5 @@ function fabMapa(){
   renderTodo();
   $('arranque').classList.add('disparo');
   setTimeout(()=>$('arranque').classList.add('fuera'),260);
+  precargarMiniaturas();
 })();
