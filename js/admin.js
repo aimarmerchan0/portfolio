@@ -333,6 +333,10 @@ function cambiarPortada(gid){
   input.onchange=async()=>{
     const file=input.files[0];input.value='';
     if(!file)return;
+    if(esFormatoNoVisible(file.name)){
+      toast('Ese archivo es RAW y ningún navegador puede mostrarlo. Expórtalo a JPG primero.',6500);
+      return;
+    }
     cerrarHoja();subiendo('Subiendo portada…');
     const url=await subirArchivo(file,gid);
     if(url){await dbUpdate('galerias',gid,{portada_url:url});await cargarDatos();renderTodo();refrescarColeccion();}
@@ -374,7 +378,12 @@ function subirFotosAGaleria(){
   pedirFechaLote(hoy,()=>{
     const input=$('input-fotos');
     input.onchange=async()=>{
-      const files=[...input.files];input.value='';
+      const todos=[...input.files];input.value='';
+      if(!todos.length)return;
+      const files=todos.filter(f=>!esFormatoNoVisible(f.name));
+      if(todos.length>files.length){
+        toast(`${todos.length-files.length} archivo(s) RAW omitido(s) — ningún navegador puede mostrarlos. Expórtalos a JPG primero.`,6500);
+      }
       if(!files.length)return;
       const gid=coleccion.id;
       subiendo(`Subiendo 0 de ${files.length}…`);
@@ -402,7 +411,12 @@ function subirFotosALugar(lugarId){
   pedirFechaLote(hoy,()=>{
     const input=$('input-fotos');
     input.onchange=async()=>{
-      const files=[...input.files];input.value='';
+      const todos=[...input.files];input.value='';
+      if(!todos.length)return;
+      const files=todos.filter(f=>!esFormatoNoVisible(f.name));
+      if(todos.length>files.length){
+        toast(`${todos.length-files.length} archivo(s) RAW omitido(s) — ningún navegador puede mostrarlos. Expórtalos a JPG primero.`,6500);
+      }
       if(!files.length)return;
       subiendo(`Subiendo 0 de ${files.length}…`);
       const resultados=await subirVariosConMiniatura(files,'lugar-'+lugarId,(hechos,total)=>subiendo(`Subiendo ${hechos} de ${total}…`));

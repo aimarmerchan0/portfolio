@@ -347,7 +347,7 @@ function abrirLugar(lid){
   abrirColeccion({
     id:lid,tipo:'lugar',titulo:l.nombre,
     sub:`${l.region||''} · ${fotos.length} fotos${nG?` de ${nG} galería${nG>1?'s':''}`:''}`,
-    portada:fotos[0]?fotos[0].url:'',
+    portada:urlSegura(fotos[0]?fotos[0].url:''),
     fotos,mostrarOrigen:true,
   });
 }
@@ -574,7 +574,7 @@ function abrirFoto(j,origenEl=null){
     const s=document.createElement('div');
     s.className='foto-slide';
     s.innerHTML=`<img class="eco" src="${miniDe(f)}" alt="">
-      <div class="marco"><img src="${f.url}" alt="${f.titulo||''}"></div>`;
+      <div class="marco"><img src="${urlSegura(f.url)}" alt="${f.titulo||''}"></div>`;
     carro.appendChild(s);
     const t=document.createElement('button');
     t.className='pulg';
@@ -741,6 +741,7 @@ function abrirHojaInfo(){
   const fecha=f.fechaEfectiva?fechaMostrar(f.fechaEfectiva):null;
   const contexto=(coleccion.tipo==='lugar'||coleccion.tipo==='cronologia')&&f.galeria?' · Galería '+f.galeria:'';
   const ubicacion=coleccion.tipo==='cronologia'?(f.lugarNombre||'Sin ubicación'):null;
+  const fotoRota=esFormatoNoVisible(f.url);
   let estadoOriginal=null;
   if(SESION){
     estadoOriginal=!f.url_original?'No subido (se simula)'
@@ -750,6 +751,7 @@ function abrirHojaInfo(){
   hoja(`
     <div class="grupo">
       <div class="cab-hoja"><b>${f.titulo||'Sin título'}</b><span>${coleccion.titulo}${contexto}</span></div>
+      ${SESION&&fotoRota?`<div class="dato">Foto principal <span>⚠️ RAW no compatible — súbela de nuevo en JPG</span></div>`:''}
       ${fecha?`<div class="dato">Fecha <span>${fecha}</span></div>`:''}
       ${ubicacion?`<div class="dato">Ubicación <span>${ubicacion}</span></div>`:''}
       ${f.exif?`<div class="dato">Ajustes <span>${f.exif}</span></div>`:''}

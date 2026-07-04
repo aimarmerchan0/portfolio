@@ -101,6 +101,14 @@ function esFormatoNoVisible(nombreOUrl) {
   const ext = (nombreOUrl || '').split('?')[0].split('.').pop().toLowerCase();
   return EXTENSIONES_NO_VISIBLES.includes(ext);
 }
+/* si una foto ya guardada resulta ser un formato no visible, mostramos este aviso
+   en vez de dejar que el navegador intente cargarla y falle con un icono roto */
+const PLACEHOLDER_RAW = 'data:image/svg+xml,' + encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"><rect width="300" height="300" fill="#CFCFC8"/><text x="150" y="158" font-family="sans-serif" font-weight="700" font-size="26" fill="#75756f" text-anchor="middle">RAW</text></svg>`
+);
+function urlSegura(u) {
+  return (u && esFormatoNoVisible(u)) ? PLACEHOLDER_RAW : u;
+}
 
 /* ─── toast que SOLO se muestra si hay sesión de administrador — nunca a un visitante ─── */
 function toastAdmin(m, duracion = 4200) {
@@ -138,8 +146,8 @@ function fotosDeLugar(lid) {
       return 0;
     });
 }
-const miniDe = f => f.miniatura || f.url;
-const portadaDeGaleria = g => g.portada_url || (fotosDeGaleria(g.id)[0] || {}).url || "";
+const miniDe = f => urlSegura(f.miniatura || f.url);
+const portadaDeGaleria = g => urlSegura(g.portada_url || (fotosDeGaleria(g.id)[0] || {}).url || "");
 
 /* ─── todas las fotos, de cualquier galería o lugar, en orden cronológico (más recientes primero) ─── */
 function todasLasFotosOrdenadas() {
