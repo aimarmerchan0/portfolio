@@ -474,6 +474,11 @@ function subirOriginal(fid){
   input.onchange=async()=>{
     const file=input.files[0];input.value='';
     if(!file)return;
+    if(esFormatoNoVisible(file.name)){
+      const ext=file.name.split('.').pop().toUpperCase();
+      toast(`Ese archivo es un RAW (.${ext}) y ningún navegador puede mostrarlo. Expórtalo como JPG (desde Lightroom, Photos o tu editor) y súbelo así.`,7000);
+      return;
+    }
     subiendo('Subiendo original…');
     const f=DATOS.fotos.find(x=>x.id===fid);
     const carpeta=f.galeria_id?f.galeria_id+'/originales':'lugar-'+f.lugar_id+'/originales';

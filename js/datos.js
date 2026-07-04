@@ -68,7 +68,7 @@ function datosDemo() {
 async function cargarDatos() {
   if (MODO_DEMO) { datosDemo(); return; }
   if (!sb) {
-    toast('No se pudo conectar con Supabase — revisa tu conexión y recarga la página', 5000);
+    toastAdmin('No se pudo conectar con Supabase — revisa tu conexión y recarga la página', 5000);
     return;
   }
   const [l, f] = await Promise.all([
@@ -79,22 +79,34 @@ async function cargarDatos() {
   if (g.error) {
     /* probablemente falta ejecutar la migración que añade la columna "orden" — reintenta sin ella */
     g = await sb.from("galerias").select("*").order("anio", { ascending: false });
-    if (!g.error) toast('Ejecuta la migración pendiente (ver INSTRUCCIONES.md) para poder reordenar galerías', 5000);
+    if (!g.error) toastAdmin('Ejecuta la migración pendiente (ver INSTRUCCIONES.md) para poder reordenar galerías', 5000);
   }
   if (l.error || g.error || f.error) {
     console.error(l.error || g.error || f.error);
     /* IMPORTANTE: si Supabase está configurado de verdad, jamás sustituimos tus datos reales
-       por los de prueba — eso solo confundiría, haciendo parecer que se perdió contenido. */
-    toast('No se han podido cargar tus datos de Supabase: ' + (l.error || g.error || f.error).message, 6000);
+       por los de prueba — eso solo confundiría, haciendo parecer que se perdió contenido.
+       Y este aviso solo lo ve el administrador: un visitante no debe ver errores técnicos. */
+    toastAdmin('No se han podido cargar tus datos de Supabase: ' + (l.error || g.error || f.error).message, 6000);
     return;
   }
   DATOS.lugares = l.data; DATOS.galerias = g.data; DATOS.fotos = f.data;
   if (!DATOS.galerias.length && !DATOS.lugares.length) {
-    toast("Sin contenido todavía — entra como administrador para crearlo");
+    toast(SESION ? "Sin contenido todavía — entra como administrador para crearlo" : "Aún no hay contenido publicado");
   }
 }
 
-/* ─── consultas ─── */
+/* ─── formatos que ningún navegador puede mostrar en un <img> (RAW de cámara, TIFF) ─── */
+const EXTENSIONES_NO_VISIBLES = ['cr2','cr3','nef','arw','dng','raf','orf','rw2','pef','srw','raw','x3f','tif','tiff'];
+function esFormatoNoVisible(nombreOUrl) {
+  const ext = (nombreOUrl || '').split('?')[0].split('.').pop().toLowerCase();
+  return EXTENSIONES_NO_VISIBLES.includes(ext);
+}
+
+/* ─── toast que SOLO se muestra si hay sesión de administrador — nunca a un visitante ─── */
+function toastAdmin(m, duracion = 4200) {
+  if (!SESION) { console.warn('[solo admin] ' + m); return; }
+  toast(m, duracion);
+}
 const lugarDe = id => DATOS.lugares.find(l => l.id === id);
 const galeriaDe = id => DATOS.galerias.find(g => g.id === id);
 function fechaEfectivaFoto(f){
@@ -212,7 +224,7 @@ async function buscarDireccion(consulta) {
     });
   } catch (err) {
     console.error(err);
-    toast('No se pudo buscar la dirección: ' + err.message, 4000);
+    toastAdmin('No se pudo buscar la dirección: ' + err.message, 4000);
     return [];
   }
 }
@@ -244,7 +256,7 @@ async function _subirUnArchivo(archivo, carpeta, sufijo) {
   const ext = (archivo.name.split(".").pop() || "jpg").toLowerCase();
   const ruta = `${carpeta}/${crypto.randomUUID()}${sufijo}.${ext}`;
   const { error } = await sb.storage.from(BUCKET).upload(ruta, archivo, { upsert: false });
-  if (error) { console.error(error); toast("Error al subir: " + error.message, 4500); return null; }
+  if (error) { console.error(error); toastAdmin("Error al subir: " + error.message, 4500); return null; }
   return sb.storage.from(BUCKET).getPublicUrl(ruta).data.publicUrl;
 }
 /* sube la foto grande (comprimida) Y una miniatura ligera — la miniatura es la clave
@@ -306,17 +318,17 @@ function requiereAdmin() {
 }
 async function dbInsert(tabla, fila) {
   const { data, error } = await sb.from(tabla).insert(fila).select().single();
-  if (error) { console.error(error); toast("Error al guardar: " + error.message, 4500); return null; }
+  if (error) { console.error(error); toastAdmin("Error al guardar: " + error.message, 4500); return null; }
   return data;
 }
 async function dbUpdate(tabla, id, cambios) {
   const { error } = await sb.from(tabla).update(cambios).eq("id", id);
-  if (error) { console.error(error); toast("Error al actualizar: " + error.message, 4500); return false; }
+  if (error) { console.error(error); toastAdmin("Error al actualizar: " + error.message, 4500); return false; }
   return true;
 }
 async function dbDelete(tabla, id) {
   const { error } = await sb.from(tabla).delete().eq("id", id);
-  if (error) { console.error(error); toast("Error al eliminar: " + error.message, 4500); return false; }
+  if (error) { console.error(error); toastAdmin("Error al eliminar: " + error.message, 4500); return false; }
   return true;
 }
 async function subirArchivo(file, carpeta) {
@@ -324,7 +336,7 @@ async function subirArchivo(file, carpeta) {
   const ext = (archivo.name.split(".").pop() || "jpg").toLowerCase();
   const ruta = `${carpeta}/${crypto.randomUUID()}.${ext}`;
   const { error } = await sb.storage.from(BUCKET).upload(ruta, archivo, { upsert: false });
-  if (error) { console.error(error); toast("Error al subir: " + error.message, 4500); return null; }
+  if (error) { console.error(error); toastAdmin("Error al subir: " + error.message, 4500); return null; }
   return sb.storage.from(BUCKET).getPublicUrl(ruta).data.publicUrl;
 }
 

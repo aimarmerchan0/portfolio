@@ -62,7 +62,7 @@ function intentar(fn){
   try{fn();}
   catch(err){
     console.error(err);
-    toast('Error visual en '+fn.name+': '+err.message,5000);
+    toastAdmin('Error visual en '+fn.name+': '+err.message,5000);
   }
 }
 
@@ -192,7 +192,10 @@ function cargarLeaflet(){
 }
 function fallbackMapa(txt){
   const f=$('mapa-fallback');
-  if(txt){ $('mapa-fallback-txt').textContent=txt; f.classList.add('visible'); }
+  if(txt){
+    $('mapa-fallback-txt').textContent=SESION?txt:'El mapa no está disponible en este momento. Vuelve a intentarlo más tarde.';
+    f.classList.add('visible');
+  }
   else f.classList.remove('visible');
 }
 function iniciarMapa(){
@@ -613,8 +616,8 @@ function irAFoto(k,inmediato=false){
   $('foto-num').textContent=`${k+1} de ${coleccion.fotos.length} · ${coleccion.titulo}`;
   pulgs.forEach((p,x)=>p.classList.toggle('viva',x===k));
   if(pulgs[k])pulgs[k].scrollIntoView({behavior:inmediato?'auto':'smooth',inline:'center',block:'nearest'});
-  /* el botón Antes/Después solo aparece si esta foto tiene un original subido */
-  const tieneOriginal=!!f.url_original;
+  /* el botón Antes/Después solo aparece si hay original Y el navegador puede mostrarlo */
+  const tieneOriginal=!!f.url_original&&!esFormatoNoVisible(f.url_original);
   $('btn-cmp').style.display=tieneOriginal?'':'none';
   $('sep-cmp').style.display=tieneOriginal?'':'none';
 }
@@ -663,7 +666,11 @@ zona.addEventListener('touchstart',()=>{
 function alternarComparador(){cmpActivo?quitarComparador():ponerComparador();}
 function ponerComparador(){
   const f=coleccion.fotos[fotoIdx];
-  if(!f.url_original){toast('Esta foto no tiene original subido');return;}
+  if(!f.url_original){toastAdmin('Esta foto no tiene original subido');return;}
+  if(esFormatoNoVisible(f.url_original)){
+    toastAdmin('El original guardado es un archivo RAW y los navegadores no pueden mostrarlo. Súbelo de nuevo en JPG desde Info.',6500);
+    return;
+  }
   cmpActivo=true;
   $('btn-cmp').classList.add('activo');
   const marco=slides[fotoIdx].querySelector('.marco');
@@ -679,7 +686,7 @@ function ponerComparador(){
     <span class="cmp-tag a">Antes</span><span class="cmp-tag b">Después</span>`);
   const capa=marco.querySelector('.cmp-antes'),divi=marco.querySelector('.cmp-div');
   const imgAntes=capa.querySelector('img');
-  imgAntes.onerror=()=>{toast('No se pudo cargar la foto original — vuelve a subirla desde Info',5000);quitarComparador();};
+  imgAntes.onerror=()=>{toastAdmin('No se pudo cargar la foto original — vuelve a subirla desde Info',5000);quitarComparador();};
   imgAntes.src=f.url_original;
 
   /* barrido de entrada suave, de 0% a 50% */
@@ -701,7 +708,7 @@ function ponerComparador(){
   marco.onpointermove=e=>{if(arr)mover(e.clientX);};
   marco.onpointerup=marco.onpointercancel=()=>arr=false;
   if(f.url_original===f.url){
-    toast('El original y la editada parecen ser el mismo archivo — súbelo de nuevo desde Info',4500);
+    toastAdmin('El original y la editada parecen ser el mismo archivo — súbelo de nuevo desde Info',4500);
   }
 }
 function quitarComparador(){
@@ -725,13 +732,19 @@ function abrirHojaInfo(){
   const fecha=f.fechaEfectiva?fechaMostrar(f.fechaEfectiva):null;
   const contexto=(coleccion.tipo==='lugar'||coleccion.tipo==='cronologia')&&f.galeria?' · Galería '+f.galeria:'';
   const ubicacion=coleccion.tipo==='cronologia'?(f.lugarNombre||'Sin ubicación'):null;
+  let estadoOriginal=null;
+  if(SESION){
+    estadoOriginal=!f.url_original?'No subido (se simula)'
+      :esFormatoNoVisible(f.url_original)?'⚠️ RAW no compatible — vuelve a subir en JPG'
+      :'Sí — se usa al comparar';
+  }
   hoja(`
     <div class="grupo">
       <div class="cab-hoja"><b>${f.titulo||'Sin título'}</b><span>${coleccion.titulo}${contexto}</span></div>
       ${fecha?`<div class="dato">Fecha <span>${fecha}</span></div>`:''}
       ${ubicacion?`<div class="dato">Ubicación <span>${ubicacion}</span></div>`:''}
       ${f.exif?`<div class="dato">Ajustes <span>${f.exif}</span></div>`:''}
-      <div class="dato">Original (antes) <span>${f.url_original?'Sí — se usa al comparar':'No subido (se simula)'}</span></div>
+      ${estadoOriginal?`<div class="dato">Original (antes) <span>${estadoOriginal}</span></div>`:''}
       ${SESION?`
         <button class="opcion" onclick="cerrarHoja();formFoto('${f.id}')">Editar título / fecha / EXIF / lugar</button>
         <button class="opcion" onclick="cerrarHoja();subirOriginal('${f.id}')">Subir foto original (antes)</button>
@@ -789,7 +802,7 @@ function precargarMiniaturas(){
   const minimo=esperar(1100);
   const datos=cargarDatos().catch(err=>{
     console.error(err);
-    toast('Error cargando la app: '+err.message,6000);
+    toastAdmin('Error cargando la app: '+err.message,6000);
   });
   await Promise.race([Promise.all([datos,minimo]),esperar(6000)]);
   renderTodo();
