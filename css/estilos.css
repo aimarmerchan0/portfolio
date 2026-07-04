@@ -611,6 +611,17 @@ body.admin #fab-colec.visible{display:flex}
 .foto-chip-album{position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;transition:transform .2s var(--rebote),opacity .2s}
 .foto-chip-album:active{transform:scale(.92)}
 .foto-chip-album img{width:100%;height:100%;object-fit:cover}
+.foto-chip-album.apagada{opacity:.32}
+.foto-chip-album .marca-check{
+  position:absolute;top:5px;right:5px;width:19px;height:19px;border-radius:50%;
+  background:var(--tinta);color:#FAFAF8;font-size:11px;font-weight:800;
+  display:flex;align-items:center;justify-content:center;
+}
+.foto-chip-album .etiqueta-suelta{
+  position:absolute;left:4px;bottom:4px;right:4px;z-index:2;color:#FAFAF8;
+  background:rgba(20,20,18,.55);backdrop-filter:blur(4px);border-radius:6px;padding:3px 5px;
+  font-size:8.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;
+}
 
 #toast{
   position:fixed;top:calc(var(--sup) + 12px);left:50%;transform:translate(-50%,-16px) scale(.95);z-index:700;
