@@ -116,7 +116,7 @@ function renderCronologiaPreview(excluirUrls=new Set()){
     const d=document.createElement('button');
     d.className='foto-mini-cron';
     d.innerHTML=`${f.destacada?'<span class="estrella">★</span>':''}<img loading="lazy" src="${miniDe(f)}" alt="">
-      <span>${f.lugarNombre||'Sin ubicación'}</span>`;
+      ${f.lugarNombre?`<span>${f.lugarNombre}</span>`:''}`;
     d.onclick=e=>abrirFotoCronologia(todasLasFotosOrdenadas().findIndex(x=>x.id===f.id),e.currentTarget);
     cont.appendChild(d);
   });
@@ -223,10 +223,12 @@ function iniciarMapa(){
 function lugaresOrdenadosPorFecha(){
   return DATOS.lugares.map(l=>{
     if(l.lat==null||l.lng==null)return null;
-    const fotos=fotosDeLugar(l.id).filter(f=>f.fechaEfectiva);
-    if(!fotos.length)return null;
-    const fechaMin=fotos.reduce((min,f)=>f.fechaEfectiva<min?f.fechaEfectiva:min,fotos[0].fechaEfectiva);
-    return {...l,fechaMin,fotos};
+    const todasFotos=fotosDeLugar(l.id);
+    if(!todasFotos.length)return null;
+    const conFecha=todasFotos.filter(f=>f.fechaEfectiva);
+    if(!conFecha.length)return null; /* sin ninguna fecha no se puede ubicar en el orden del recorrido */
+    const fechaMin=conFecha.reduce((min,f)=>f.fechaEfectiva<min?f.fechaEfectiva:min,conFecha[0].fechaEfectiva);
+    return {...l,fechaMin,fotos:todasFotos}; /* pero se muestran TODAS sus fotos, tengan fecha o no */
   }).filter(Boolean).sort((a,b)=>a.fechaMin<b.fechaMin?-1:(a.fechaMin>b.fechaMin?1:0));
 }
 
@@ -722,21 +724,25 @@ function renderCronologia(){
     if(clave!==mesActual){
       mesActual=clave;
       lugarActual=undefined;
-      const cab=document.createElement('div');
-      cab.className='cab-cronologia entra-cron';
-      cab.style.transitionDelay=retraso();
-      cab.textContent=f.fechaEfectiva?fechaMes(f.fechaEfectiva):'Sin fecha';
-      cont.appendChild(cab);
+      if(f.fechaEfectiva){ /* sin fecha: no ponemos ninguna cabecera, pero la foto se ve igual */
+        const cab=document.createElement('div');
+        cab.className='cab-cronologia entra-cron';
+        cab.style.transitionDelay=retraso();
+        cab.textContent=fechaMes(f.fechaEfectiva);
+        cont.appendChild(cab);
+      }
     }
     const claveLugar=f.lugarId||'sin';
-    if(claveLugar!==lugarActual){
+    if(claveLugar!==lugarActual||!subgrid){
       lugarActual=claveLugar;
-      const sub=document.createElement('div');
-      sub.className='lugar-cronologia entra-cron';
-      sub.style.transitionDelay=retraso();
-      sub.innerHTML=`<svg viewBox="0 0 24 24"><path d="M12 21s7-6.1 7-11a7 7 0 1 0-14 0c0 4.9 7 11 7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>
-        <span>${f.lugarNombre||'Sin ubicación'}</span>`;
-      cont.appendChild(sub);
+      if(f.lugarId){ /* sin ubicación: no ponemos etiqueta, pero la foto se ve igual */
+        const sub=document.createElement('div');
+        sub.className='lugar-cronologia entra-cron';
+        sub.style.transitionDelay=retraso();
+        sub.innerHTML=`<svg viewBox="0 0 24 24"><path d="M12 21s7-6.1 7-11a7 7 0 1 0-14 0c0 4.9 7 11 7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>
+          <span>${f.lugarNombre}</span>`;
+        cont.appendChild(sub);
+      }
       subgrid=document.createElement('div');
       subgrid.className='grid-cronologia entra-cron';
       subgrid.style.transitionDelay=retraso();
@@ -968,7 +974,7 @@ function abrirHojaInfo(){
   const f=coleccion.fotos[fotoIdx];
   const fecha=f.fechaEfectiva?fechaMostrar(f.fechaEfectiva):null;
   const contexto=(coleccion.tipo==='lugar'||coleccion.tipo==='cronologia')&&f.galeria?' · Galería '+f.galeria:'';
-  const ubicacion=coleccion.tipo==='cronologia'?(f.lugarNombre||'Sin ubicación'):null;
+  const ubicacion=coleccion.tipo==='cronologia'?f.lugarNombre:null;
   const fotoRota=esFormatoNoVisible(f.url);
   let estadoOriginal=null;
   if(SESION){

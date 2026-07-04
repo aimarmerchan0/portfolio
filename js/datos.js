@@ -222,8 +222,7 @@ function todasLasFotosOrdenadas() {
       lugarNombre: l ? l.nombre : null,
       lugarId: lid || null,
     };
-  }).filter(f => f.lugarId) /* la Cronología es por lugar: sin ubicación, no aparece */
-    .sort((a, b) => {
+  }).sort((a, b) => {
     /* 1º fecha (recientes primero), 2º lugar (agrupadas), 3º orden de subida */
     if (a.fechaEfectiva !== b.fechaEfectiva) {
       if (a.fechaEfectiva && b.fechaEfectiva) return a.fechaEfectiva > b.fechaEfectiva ? -1 : 1;

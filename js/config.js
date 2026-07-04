@@ -17,5 +17,5 @@ const BUCKET = "fotos";
 const PERFIL = {
   nombre: "Aimar Merchán",
   subtitulo: "Archivo expuesto",
-  instagram: "aimarmerchan",   // ← tu usuario de Instagram, SIN la @
+  instagram: "aimar",   // ← tu usuario de Instagram, SIN la @
 };
