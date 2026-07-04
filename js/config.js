@@ -16,6 +16,6 @@ const BUCKET = "fotos";
 /* Datos del propietario que se muestran en la interfaz */
 const PERFIL = {
   nombre: "Aimar Merchán",
-  subtitulo: "Fotógrafo · archivo expuesto",
-  lema: "Nada en venta — todo a la vista",
+  subtitulo: "Archivo expuesto",
+  instagram: "aimarmerchan",   // ← tu usuario de Instagram, SIN la @
 };

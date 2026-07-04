@@ -320,13 +320,19 @@ async function moverGaleria(gid,dir){
 async function eliminarGaleria(gid){
   if(!requiereAdmin())return;
   const g=galeriaDe(gid);
-  const n=fotosDeGaleria(gid).length;
-  if(!confirm(`¿Eliminar “${g.nombre}” y sus ${n} fotos? Esta acción no se puede deshacer.`))return;
+  const fotos=fotosDeGaleria(gid);
+  if(!confirm(`¿Eliminar la galería "${g.nombre}"? Las ${fotos.length} fotos NO se borran — seguirán en la web sueltas, con su fecha y lugar. Solo se elimina la agrupación.`))return;
   cerrarHoja();subiendo('Eliminando galería…');
-  for(const f of fotosDeGaleria(gid))await dbDelete('fotos',f.id);
+  for(const f of fotos){
+    const cambios={galeria_id:null};
+    /* si la foto no tenía lugar propio, conserva el de la galería para no perderlo */
+    if(!f.lugar_id&&g.lugar_id)cambios.lugar_id=g.lugar_id;
+    await dbUpdate('fotos',f.id,cambios);
+  }
   await dbDelete('galerias',gid);
   await cargarDatos();renderTodo();subidaLista();
   volverDeColec();
+  toast('Galería eliminada — las fotos siguen disponibles');
 }
 function cambiarPortada(gid){
   if(!requiereAdmin())return;

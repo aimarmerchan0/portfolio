@@ -26,8 +26,13 @@ function esperar(ms){return new Promise(r=>setTimeout(r,ms));}
 /* ── perfil ── */
 $('menu-nombre').textContent=PERFIL.nombre;
 $('menu-sub').textContent=PERFIL.subtitulo;
-$('menu-lema').textContent=PERFIL.lema;
 $('menu-copy').textContent=PERFIL.nombre;
+if(PERFIL.instagram){
+  $('enlace-instagram').href='https://ig.me/m/'+PERFIL.instagram;
+  $('enlace-instagram-txt').textContent='@'+PERFIL.instagram;
+}else{
+  $('enlace-instagram').style.display='none';
+}
 $('lema-pie-txt').textContent='Mirar despacio también es un oficio';
 
 /* ── navegación raíz ── */
@@ -761,6 +766,16 @@ function activarRevelado(){
   document.querySelectorAll('.entra-cron:not(.visible)').forEach(el=>obs.observe(el));
 }
 
+/* el nombre de archivo (IMG_1234.jpg) nunca debe verlo un visitante — en su
+   lugar se muestra el nombre del lugar asignado, si lo tiene. El admin sí
+   ve el nombre real, porque le sirve para identificar y gestionar la foto. */
+function tituloMostrable(f){
+  if(SESION)return f.titulo||'Sin título';
+  const lid=lugarEfectivo(f);
+  const l=lid?lugarDe(lid):null;
+  return l?l.nombre:'';
+}
+
 /* ═══ VISOR ═══ */
 let fotoIdx=0,slides=[],pulgs=[],celdas=[],cmpActivo=false;
 const carro=$('foto-carro'),tira=$('tira'),pFotoEl=$('p-foto');
@@ -806,7 +821,7 @@ function irAFoto(k,inmediato=false){
   carro.style.transform=`translateX(${-k*100}%)`;
   if(inmediato)requestAnimationFrame(()=>carro.style.transition='');
   const f=coleccion.fotos[k];
-  $('foto-archivo').textContent=f.titulo||'Sin título';
+  $('foto-archivo').textContent=tituloMostrable(f);
   $('foto-num').textContent=`${k+1} de ${coleccion.fotos.length} · ${coleccion.titulo}`;
   pulgs.forEach((p,x)=>p.classList.toggle('viva',x===k));
   if(pulgs[k])pulgs[k].scrollIntoView({behavior:inmediato?'auto':'smooth',inline:'center',block:'nearest'});
@@ -963,7 +978,7 @@ function abrirHojaInfo(){
   }
   hoja(`
     <div class="grupo">
-      <div class="cab-hoja"><b>${f.titulo||'Sin título'}</b><span>${coleccion.titulo}${contexto}</span></div>
+      <div class="cab-hoja"><b>${tituloMostrable(f)||'&nbsp;'}</b><span>${coleccion.titulo}${contexto}</span></div>
       ${SESION&&fotoRota?`<div class="dato">Foto principal <span>⚠️ RAW no compatible — súbela de nuevo en JPG</span></div>`:''}
       ${fecha?`<div class="dato">Fecha <span>${fecha}</span></div>`:''}
       ${ubicacion?`<div class="dato">Ubicación <span>${ubicacion}</span></div>`:''}
