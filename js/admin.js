@@ -381,6 +381,16 @@ function subirFotosAGaleria(){
   if(!requiereAdmin())return;
   if(!coleccion)return;
   if(coleccion.tipo==='lugar'){subirFotosALugar(coleccion.id);return;}
+  const sueltas=DATOS.fotos.filter(f=>!f.galeria_id);
+  hoja(`
+    <div class="grupo">
+      <div class="cab-hoja"><b>Añadir fotos</b><span>A esta galería</span></div>
+      <button class="opcion" onclick="cerrarHoja();subirFotosNuevasAGaleria()">📷 Subir fotos nuevas del dispositivo</button>
+      <button class="opcion" ${sueltas.length?'':'disabled'} onclick="abrirImportarSueltas()">🗂️ Añadir fotos sueltas ya subidas (${sueltas.length})</button>
+    </div>
+    <button class="cancelar" onclick="cerrarHoja()">Cancelar</button>`);
+}
+function subirFotosNuevasAGaleria(){
   const hoy=new Date().toISOString().slice(0,10);
   pedirFechaLote(hoy,()=>{
     const input=$('input-fotos');
@@ -414,6 +424,65 @@ function subirFotosAGaleria(){
     };
     input.click();
   });
+}
+
+/* ── importar fotos sueltas (ya subidas, sin galería) a la galería actual ── */
+let _importarSueltas=null;
+function abrirImportarSueltas(){
+  const lista=DATOS.fotos.filter(f=>!f.galeria_id);
+  if(!lista.length){toast('No tienes fotos sueltas sin galería');return;}
+  _importarSueltas={lista,seleccionadas:new Set()};
+  pintarImportarSueltas();
+}
+function pintarImportarSueltas(){
+  const c=_importarSueltas;
+  const opciones=c.lista.map(f=>{
+    const lid=lugarEfectivo(f);
+    const l=lid?lugarDe(lid):null;
+    const activa=c.seleccionadas.has(f.id);
+    return `<button class="foto-chip-album ${activa?'':'apagada'}" onclick="alternarSueltaSeleccionada('${f.id}')">
+      <img src="${miniDe(f)}" alt="">
+      <span class="marca-check">${activa?'✓':''}</span>
+      ${l?`<span class="etiqueta-suelta">${l.nombre}</span>`:''}
+    </button>`;
+  }).join('');
+  hoja(`
+    <div class="grupo">
+      <div class="cab-hoja"><b>Fotos sueltas</b><span>${c.seleccionadas.size} de ${c.lista.length} elegidas · toca para seleccionar</span></div>
+      <button class="opcion" onclick="alternarTodasSueltas()">${c.seleccionadas.size===c.lista.length?'Deseleccionar todas':'Seleccionar todas'}</button>
+      <div id="lista-fotos-album">${opciones}</div>
+    </div>
+    <button class="principal" ${c.seleccionadas.size?'':'disabled'} onclick="importarSueltasAGaleria()">Añadir a esta galería (${c.seleccionadas.size})</button>
+    <button class="cancelar" onclick="subirFotosAGaleria()">Volver</button>`);
+}
+function alternarSueltaSeleccionada(fid){
+  const c=_importarSueltas;
+  if(c.seleccionadas.has(fid))c.seleccionadas.delete(fid);
+  else c.seleccionadas.add(fid);
+  pintarImportarSueltas();
+}
+function alternarTodasSueltas(){
+  const c=_importarSueltas;
+  if(c.seleccionadas.size===c.lista.length)c.seleccionadas.clear();
+  else c.lista.forEach(f=>c.seleccionadas.add(f.id));
+  pintarImportarSueltas();
+}
+async function importarSueltasAGaleria(){
+  const c=_importarSueltas;
+  if(!c||!c.seleccionadas.size)return;
+  const gid=coleccion.id;
+  const total=c.seleccionadas.size;
+  cerrarHoja();
+  subiendo(`Añadiendo 0 de ${total}…`);
+  let hechas=0;
+  for(const fid of c.seleccionadas){
+    const ok=await dbUpdate('fotos',fid,{galeria_id:gid});
+    if(ok)hechas++;
+    subiendo(`Añadiendo ${hechas} de ${total}…`);
+  }
+  await cargarDatos();renderTodo();refrescarColeccion();
+  subidaLista();
+  toast(`${hechas} foto${hechas!==1?'s':''} añadida${hechas!==1?'s':''} a la galería`);
 }
 function subirFotosALugar(lugarId){
   if(!requiereAdmin())return;
