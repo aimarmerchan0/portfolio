@@ -57,10 +57,7 @@ body::after{
 body.empujada .raiz{transform:scale(.93) translateX(-4%);border-radius:26px;overflow:hidden}
 .push{z-index:30;transform:translateX(103%);transition:transform .55s var(--ios);box-shadow:-24px 0 60px rgba(20,20,18,.18)}
 .push.abierta{transform:none}
-#p-foto{z-index:40;will-change:transform,opacity}
-#p-foto.suave-pre{transform:scale(.94);opacity:0}
-#p-foto.suave-in{transition:transform .45s cubic-bezier(.22,1,.36,1),opacity .35s ease!important;transform:none;opacity:1}
-#p-foto.suave-out{transition:transform .32s ease,opacity .3s ease!important;transform:scale(.95);opacity:0}
+#p-foto{z-index:40}
 body.nivel2 #p-colec{transform:scale(.95) translateX(-4%);border-radius:26px}
 .scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
 
@@ -558,6 +555,29 @@ body.admin #fab-colec.visible{display:flex}
 #hoja .principal:active{transform:scale(.97)}
 #hoja .principal[disabled]{opacity:.5}
 #hoja .nota-form{padding:0 18px 14px;font-size:12px;color:var(--gris)}
+/* diseñador de álbum */
+.opciones-layout{display:flex;gap:8px}
+.chip-layout{
+  flex:1;padding:11px 6px;border-radius:12px;background:var(--fondo2);
+  font-family:'Archivo',sans-serif;font-stretch:110%;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  text-align:center;transition:background .2s,color .2s,transform .2s var(--rebote);
+}
+.chip-layout:active{transform:scale(.95)}
+.chip-layout.activo{background:var(--tinta);color:#FAFAF8}
+.fila-check{display:flex;align-items:center;justify-content:space-between}
+.fila-check label{font-family:inherit;font-weight:500;font-size:15px;text-transform:none;letter-spacing:0;color:var(--tinta);margin:0}
+.fila-check input[type=checkbox]{width:22px;height:22px;accent-color:var(--tinta)}
+#lista-fotos-album{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;padding:14px 18px}
+.foto-chip-album{position:relative;aspect-ratio:1;border-radius:10px;overflow:hidden;transition:transform .2s var(--rebote),opacity .2s}
+.foto-chip-album:active{transform:scale(.92)}
+.foto-chip-album.apagada{opacity:.32}
+.foto-chip-album .marca-check{
+  position:absolute;top:5px;right:5px;width:19px;height:19px;border-radius:50%;
+  background:var(--tinta);color:#FAFAF8;font-size:11px;font-weight:800;
+  display:flex;align-items:center;justify-content:center;
+}
+#preview-album-wrap{padding:0 18px 16px}
+#preview-album-canvas{width:100%;border-radius:12px;box-shadow:0 10px 26px -10px rgba(20,20,18,.35);background:var(--fondo2)}
 
 #toast{
   position:fixed;top:calc(var(--sup) + 12px);left:50%;transform:translate(-50%,-16px) scale(.95);z-index:700;
@@ -614,9 +634,6 @@ body.admin #fab-colec.visible{display:flex}
   .pantalla{left:50%;transform:translateX(-50%)}
   .push{transform:translateX(-50%) translateX(110%)}
   .push.abierta{transform:translateX(-50%)}
-  #p-foto.suave-pre{transform:translateX(-50%) scale(.94)}
-  #p-foto.suave-in{transform:translateX(-50%)}
-  #p-foto.suave-out{transform:translateX(-50%) scale(.95)}
   body.empujada .raiz{transform:translateX(-50%) scale(.93)}
   body.nivel2 #p-colec{transform:translateX(-50%) scale(.95);border-radius:26px}
   #menu{left:calc(50% - 260px)}
