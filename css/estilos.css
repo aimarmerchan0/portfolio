@@ -119,8 +119,15 @@ body.admin #menu .zona-admin .estado i{background:var(--ok)}
   transition:transform .2s var(--rebote);
 }
 #menu .zona-admin button:active{transform:scale(.96)}
-#menu .pie-menu{padding-top:16px;font-size:12px;color:var(--gris);line-height:1.7}
-#menu .pie-menu b{font-family:'Archivo',sans-serif;font-stretch:112%;font-weight:700;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--tinta)}
+#menu .pie-menu{padding-top:16px}
+.enlace-instagram{
+  display:flex;align-items:center;gap:10px;padding:12px;border-radius:14px;
+  background:var(--fondo2);margin-bottom:12px;transition:transform .2s var(--rebote);
+}
+.enlace-instagram:active{transform:scale(.96)}
+.enlace-instagram svg{width:22px;height:22px;stroke:var(--tinta);stroke-width:1.7;fill:none;flex:0 0 auto}
+.enlace-instagram span{font-size:14px;font-weight:600;color:var(--tinta)}
+.copy-menu{font-size:11.5px;color:var(--gris)}
 
 /* ═══ cabecera raíz ═══ */
 .cab-raiz{padding:calc(var(--sup) + 16px) 22px 8px;display:flex;align-items:center;gap:8px}
