@@ -605,8 +605,11 @@ function pintarGridColeccion(){
     agruparPorVisita(coleccion.fotos).forEach(grp=>{
       const cab=document.createElement('div');
       cab.className='cab-visita';
-      const fechaTxt=grp.fecha?fechaMostrar(grp.fecha):'Sin fecha';
-      cab.innerHTML=`<b>${fechaTxt}</b><span>${grp.titulo} · ${grp.fotos.length} foto${grp.fotos.length!==1?'s':''}</span>`;
+      if(grp.fecha){
+        cab.innerHTML=`<b>${fechaMostrar(grp.fecha)}</b><span>${grp.titulo} · ${grp.fotos.length} foto${grp.fotos.length!==1?'s':''}</span>`;
+      }else{
+        cab.innerHTML=`<b>${grp.titulo}</b><span>${grp.fotos.length} foto${grp.fotos.length!==1?'s':''}</span>`;
+      }
       grid.appendChild(cab);
       const subgrid=document.createElement('div');
       subgrid.className='subgrid-visita';
@@ -622,6 +625,35 @@ function pintarGridColeccion(){
       grid.appendChild(subgrid);
     });
     return;
+  }
+
+  /* si una galería mezcla fotos de varios lugares distintos (varias direcciones),
+     se agrupan visualmente por dirección en vez de mostrarse todas juntas */
+  if(coleccion.tipo==='galeria'){
+    const distintos=new Set(coleccion.fotos.map(f=>lugarEfectivo(f)).filter(Boolean));
+    if(distintos.size>=2){
+      agruparPorLugarSimple(coleccion.fotos).forEach(grp=>{
+        if(grp.nombre){
+          const cab=document.createElement('div');
+          cab.className='cab-visita';
+          cab.innerHTML=`<b>${grp.nombre}</b><span>${grp.fotos.length} foto${grp.fotos.length!==1?'s':''}</span>`;
+          grid.appendChild(cab);
+        }
+        const subgrid=document.createElement('div');
+        subgrid.className='subgrid-visita';
+        grp.fotos.forEach(f=>{
+          const jGlobal=coleccion.fotos.indexOf(f);
+          const cel=document.createElement('div');
+          cel.className='celda';
+          cel.innerHTML=`<img loading="lazy" src="${miniDe(f)}" alt="${f.titulo||''}">`;
+          cel.onclick=e=>abrirFoto(jGlobal,e.currentTarget);
+          subgrid.appendChild(cel);
+          celdasColeccion[jGlobal]=cel;
+        });
+        grid.appendChild(subgrid);
+      });
+      return;
+    }
   }
 
   coleccion.fotos.forEach((f,j)=>{

@@ -237,6 +237,22 @@ function fechaRelativa(fechaISO) {
   if (!fechaISO) return 'Sin fecha';
   return fechaMes(fechaISO);
 }
+/* ─── agrupa por lugar sin más (para galerías que mezclan varias direcciones):
+   junta TODAS las fotos de cada lugar aunque no estén seguidas en el orden ─── */
+function agruparPorLugarSimple(fotos) {
+  const grupos = new Map();
+  fotos.forEach(f => {
+    const lid = lugarEfectivo(f);
+    const clave = lid || 'sin-lugar';
+    if (!grupos.has(clave)) {
+      const l = lid ? lugarDe(lid) : null;
+      grupos.set(clave, { lugarId: lid || null, nombre: l ? l.nombre : null, fotos: [] });
+    }
+    grupos.get(clave).fotos.push(f);
+  });
+  return [...grupos.values()];
+}
+
 function agruparPorVisita(fotos) {
   const grupos = new Map();
   fotos.forEach(f => {
