@@ -171,7 +171,7 @@ function renderGalerias(){
 }
 
 /* ── MAPA ── */
-let mapa=null,capaTerreno=null,capaSatelite=null,capaMarcadores=null,intentosMapa=0,tilesFallidos=0,tilesOk=0,vistaMapa='terreno';
+let mapa=null,capaTerreno=null,capaSatelite=null,capaMarcadores=null,intentosMapa=0,tilesFallidos=0,tilesOk=0,vistaMapa='satelite';
 let _leafletCargando=null;
 function cargarLeaflet(){
   if(window.L)return Promise.resolve();
@@ -499,7 +499,10 @@ function rectPanelDestino(){
   return {left:0,top:0,width:w,height:h};
 }
 
-/* ═══ CRONOLOGÍA: fecha → lugar → rejilla de fotos, más recientes primero ═══ */
+/* ═══ CRONOLOGÍA: mes → lugar → rejilla de fotos, más recientes primero ═══
+   Se agrupa por MES (no por día exacto) para que se vea "Junio 2025" una
+   sola vez aunque haya varias fechas distintas dentro del mismo mes.
+   El orden interno sigue usando la fecha completa guardada. */
 let celdasCronologia=[];
 function renderCronologia(){
   const cont=$('cronologia-lista');
@@ -508,15 +511,19 @@ function renderCronologia(){
   celdasCronologia=new Array(todas.length).fill(null);
   if(!todas.length){cont.innerHTML='<p class="vacio">Aún no hay fotos. '+(SESION?'Sube alguna desde una galería o un lugar.':'')+'</p>';return;}
 
-  /* agrupa: fecha → lugar (manteniendo el orden cronológico global) */
-  let fechaActual=undefined,lugarActual=undefined,subgrid=null;
+  let contadorUI=0;
+  const retraso=()=>Math.min(contadorUI++,12)*0.05+'s';
+
+  let mesActual=undefined,lugarActual=undefined,subgrid=null;
   todas.forEach((f,j)=>{
-    if(f.fechaEfectiva!==fechaActual){
-      fechaActual=f.fechaEfectiva;
+    const clave=f.fechaEfectiva?f.fechaEfectiva.slice(0,7):'sin-fecha';
+    if(clave!==mesActual){
+      mesActual=clave;
       lugarActual=undefined;
       const cab=document.createElement('div');
       cab.className='cab-cronologia entra-cron';
-      cab.textContent=fechaRelativa(fechaActual);
+      cab.style.transitionDelay=retraso();
+      cab.textContent=f.fechaEfectiva?fechaMes(f.fechaEfectiva):'Sin fecha';
       cont.appendChild(cab);
     }
     const claveLugar=f.lugarId||'sin';
@@ -524,11 +531,13 @@ function renderCronologia(){
       lugarActual=claveLugar;
       const sub=document.createElement('div');
       sub.className='lugar-cronologia entra-cron';
+      sub.style.transitionDelay=retraso();
       sub.innerHTML=`<svg viewBox="0 0 24 24"><path d="M12 21s7-6.1 7-11a7 7 0 1 0-14 0c0 4.9 7 11 7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>
         <span>${f.lugarNombre||'Sin ubicación'}</span>`;
       cont.appendChild(sub);
       subgrid=document.createElement('div');
       subgrid.className='grid-cronologia entra-cron';
+      subgrid.style.transitionDelay=retraso();
       cont.appendChild(subgrid);
     }
     const cel=document.createElement('button');

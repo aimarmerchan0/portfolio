@@ -113,11 +113,17 @@ function fechaEfectivaFoto(f){
   return f.fecha || null;
 }
 function fechaMostrar(fechaISO, anioTexto){
-  if (fechaISO){
-    const d = new Date(fechaISO + 'T00:00:00');
-    if (!isNaN(d)) return d.toLocaleDateString('es', { day:'numeric', month:'short', year:'numeric' });
-  }
+  if (fechaISO) return fechaMes(fechaISO);
   return anioTexto || '';
+}
+/* formato de visualización en toda la app: "Junio 2025" — bonito y sin exponer el día exacto.
+   El orden y agrupación siguen usando la fecha completa guardada; esto es solo cómo se ve. */
+function fechaMes(fechaISO) {
+  if (!fechaISO) return '';
+  const d = new Date(fechaISO + 'T00:00:00');
+  if (isNaN(d)) return '';
+  const mes = d.toLocaleDateString('es', { month: 'long' });
+  return mes.charAt(0).toUpperCase() + mes.slice(1) + ' ' + d.getFullYear();
 }
 const fotosDeGaleria = gid => DATOS.fotos.filter(f => f.galeria_id === gid)
   .map(f => ({ ...f, galeria: (galeriaDe(gid) || {}).nombre, fechaEfectiva: fechaEfectivaFoto(f) }));
@@ -161,12 +167,7 @@ function todasLasFotosOrdenadas() {
 }
 function fechaRelativa(fechaISO) {
   if (!fechaISO) return 'Sin fecha';
-  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
-  const d = new Date(fechaISO + 'T00:00:00');
-  const dias = Math.round((hoy - d) / 86400000);
-  if (dias === 0) return 'Hoy';
-  if (dias === 1) return 'Ayer';
-  return fechaMostrar(fechaISO);
+  return fechaMes(fechaISO);
 }
 function agruparPorVisita(fotos) {
   const grupos = new Map();
