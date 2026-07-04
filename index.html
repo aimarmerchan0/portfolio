@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Aimar Merchán — Archivo</title>
+<link rel="icon" type="image/png" sizes="512x512" href="favicon-512.png">
+<link rel="icon" type="image/png" sizes="192x192" href="favicon-192.png">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
+<link rel="shortcut icon" href="favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 
 <!-- ═══ diagnóstico: solo visible para el administrador logueado ═══ -->
 <script>
@@ -102,8 +108,11 @@
     <button id="btn-backup" onclick="exportarCopiaSeguridad()" style="display:none;margin-top:8px;background:var(--fondo2);color:var(--tinta)">Descargar copia de seguridad</button>
   </div>
   <div class="pie-menu">
-    <b id="menu-lema"></b><br><br>
-    © 2026 <span id="menu-copy"></span>
+    <a id="enlace-instagram" class="enlace-instagram" href="#" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5.5"/><circle cx="12" cy="12" r="4.2"/><circle cx="17.2" cy="6.8" r="1.1" fill="currentColor" stroke="none"/></svg>
+      <span id="enlace-instagram-txt"></span>
+    </a>
+    <div class="copy-menu">© 2026 <span id="menu-copy"></span></div>
   </div>
 </aside>
 
