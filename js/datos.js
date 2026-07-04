@@ -137,10 +137,14 @@ function todasLasFotosOrdenadas() {
       lugarId: lid || null,
     };
   }).sort((a, b) => {
-    if (a.fechaEfectiva && b.fechaEfectiva) return a.fechaEfectiva > b.fechaEfectiva ? -1 : (a.fechaEfectiva < b.fechaEfectiva ? 1 : 0);
-    if (a.fechaEfectiva) return -1;
-    if (b.fechaEfectiva) return 1;
-    return 0;
+    /* 1º fecha (recientes primero), 2º lugar (agrupadas), 3º orden de subida */
+    if (a.fechaEfectiva !== b.fechaEfectiva) {
+      if (a.fechaEfectiva && b.fechaEfectiva) return a.fechaEfectiva > b.fechaEfectiva ? -1 : 1;
+      return a.fechaEfectiva ? -1 : 1;
+    }
+    const la = a.lugarNombre || '', lb = b.lugarNombre || '';
+    if (la !== lb) return la < lb ? -1 : 1;
+    return (a.orden || 0) - (b.orden || 0);
   });
 }
 function fechaRelativa(fechaISO) {

@@ -1,5 +1,10 @@
 /* ═══════════ APP: interfaz y navegación ═══════════ */
 
+/* ── escala fija, como una app nativa: iOS ignora user-scalable, así que se bloquea aquí ── */
+['gesturestart','gesturechange','gestureend'].forEach(ev=>
+  document.addEventListener(ev,e=>e.preventDefault(),{passive:false})
+);
+
 /* ── utilidades ── */
 const $ = id => {
   const el = document.getElementById(id);
@@ -491,7 +496,7 @@ function rectPanelDestino(){
   return {left:0,top:0,width:w,height:h};
 }
 
-/* ═══ CRONOLOGÍA: todas las fotos, de cualquier galería o lugar, más recientes primero ═══ */
+/* ═══ CRONOLOGÍA: fecha → lugar → rejilla de fotos, más recientes primero ═══ */
 let celdasCronologia=[];
 function renderCronologia(){
   const cont=$('cronologia-lista');
@@ -499,27 +504,36 @@ function renderCronologia(){
   const todas=todasLasFotosOrdenadas();
   celdasCronologia=new Array(todas.length).fill(null);
   if(!todas.length){cont.innerHTML='<p class="vacio">Aún no hay fotos. '+(SESION?'Sube alguna desde una galería o un lugar.':'')+'</p>';return;}
-  let fechaAnterior=undefined;
+
+  /* agrupa: fecha → lugar (manteniendo el orden cronológico global) */
+  let fechaActual=undefined,lugarActual=undefined,subgrid=null;
   todas.forEach((f,j)=>{
-    if(f.fechaEfectiva!==fechaAnterior){
+    if(f.fechaEfectiva!==fechaActual){
+      fechaActual=f.fechaEfectiva;
+      lugarActual=undefined;
       const cab=document.createElement('div');
       cab.className='cab-cronologia entra-cron';
-      cab.textContent=fechaRelativa(f.fechaEfectiva);
+      cab.textContent=fechaRelativa(fechaActual);
       cont.appendChild(cab);
-      fechaAnterior=f.fechaEfectiva;
     }
-    const fila=document.createElement('button');
-    fila.className='fila-cronologia entra-cron';
-    fila.innerHTML=`
-      <div class="marco"><img loading="lazy" src="${miniDe(f)}" alt=""></div>
-      <div class="datos">
-        <b>${f.titulo||'Sin título'}</b>
-        <span>${f.lugarNombre?f.lugarNombre:'Sin ubicación'}${f.galeria?' · '+f.galeria:''}</span>
-      </div>
-      <svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>`;
-    fila.onclick=e=>abrirFotoCronologia(j,e.currentTarget);
-    cont.appendChild(fila);
-    celdasCronologia[j]=fila;
+    const claveLugar=f.lugarId||'sin';
+    if(claveLugar!==lugarActual){
+      lugarActual=claveLugar;
+      const sub=document.createElement('div');
+      sub.className='lugar-cronologia entra-cron';
+      sub.innerHTML=`<svg viewBox="0 0 24 24"><path d="M12 21s7-6.1 7-11a7 7 0 1 0-14 0c0 4.9 7 11 7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>
+        <span>${f.lugarNombre||'Sin ubicación'}</span>`;
+      cont.appendChild(sub);
+      subgrid=document.createElement('div');
+      subgrid.className='grid-cronologia entra-cron';
+      cont.appendChild(subgrid);
+    }
+    const cel=document.createElement('button');
+    cel.className='celda-cron';
+    cel.innerHTML=`<img loading="lazy" src="${miniDe(f)}" alt="${f.titulo||''}">`;
+    cel.onclick=e=>abrirFotoCronologia(j,e.currentTarget);
+    subgrid.appendChild(cel);
+    celdasCronologia[j]=cel;
   });
   activarRevelado();
 }
@@ -560,53 +574,30 @@ function abrirFoto(j,origenEl=null){
   celdas=celdasColeccion;
   irAFoto(j,true);
 
-  /* efecto FLIP: crece desde la miniatura tocada hasta el panel de destino */
+  /* apertura suave: escala sutil + fundido, natural como iOS */
   const reducido=matchMedia('(prefers-reduced-motion:reduce)').matches;
-  if(origenEl&&!reducido){
-    const r=origenEl.getBoundingClientRect();
-    const rv=rectPanelDestino();
-    const esc={x:r.width/rv.width,y:r.height/rv.height};
-    const tx=(r.left+r.width/2)-(rv.left+rv.width/2);
-    const ty=(r.top+r.height/2)-(rv.top+rv.height/2);
-    pFotoEl.style.transition='none';
-    pFotoEl.style.transformOrigin='center';
-    pFotoEl.style.transform=`translate(${tx}px,${ty}px) scale(${esc.x},${esc.y})`;
-    pFotoEl.style.borderRadius='16px';
-    pFotoEl.style.opacity='.4';
+  if(!reducido){
+    pFotoEl.classList.add('suave-pre');
     pFotoEl.classList.add('abierta');
     requestAnimationFrame(()=>requestAnimationFrame(()=>{
-      pFotoEl.style.transition='transform .5s cubic-bezier(.22,1,.36,1), opacity .35s ease, border-radius .5s';
-      pFotoEl.style.transform='none';
-      pFotoEl.style.borderRadius='0';
-      pFotoEl.style.opacity='1';
+      pFotoEl.classList.add('suave-in');
+      pFotoEl.classList.remove('suave-pre');
+      setTimeout(()=>pFotoEl.classList.remove('suave-in'),480);
     }));
-    setTimeout(()=>{pFotoEl.style.transition='';pFotoEl.style.transformOrigin='';},560);
   }else{
-    pFotoEl.style.transform='';pFotoEl.style.opacity='';pFotoEl.style.borderRadius='';
     pFotoEl.classList.add('abierta');
   }
   document.body.classList.add('nivel2');
 }
 function volverDeFoto(){
   quitarComparador();
-  const destino=celdas[fotoIdx];
   const reducido=matchMedia('(prefers-reduced-motion:reduce)').matches;
-  if(destino&&!reducido){
-    const r=destino.getBoundingClientRect();
-    const rv=rectPanelDestino();
-    const esc={x:r.width/rv.width,y:r.height/rv.height};
-    const tx=(r.left+r.width/2)-(rv.left+rv.width/2);
-    const ty=(r.top+r.height/2)-(rv.top+rv.height/2);
-    pFotoEl.style.transition='transform .42s cubic-bezier(.32,.1,.4,1), opacity .4s ease, border-radius .42s';
-    pFotoEl.style.transformOrigin='center';
-    pFotoEl.style.transform=`translate(${tx}px,${ty}px) scale(${esc.x},${esc.y})`;
-    pFotoEl.style.borderRadius='16px';
-    pFotoEl.style.opacity='.3';
+  if(!reducido){
+    pFotoEl.classList.add('suave-out');
     setTimeout(()=>{
-      pFotoEl.classList.remove('abierta');
-      pFotoEl.style.transition='';pFotoEl.style.transform='';pFotoEl.style.opacity='';pFotoEl.style.borderRadius='';pFotoEl.style.transformOrigin='';
+      pFotoEl.classList.remove('abierta','suave-out');
       document.body.classList.remove('nivel2');
-    },420);
+    },340);
   }else{
     pFotoEl.classList.remove('abierta');
     document.body.classList.remove('nivel2');
@@ -644,78 +635,73 @@ let pulsoTimer=null;
 zona.addEventListener('touchstart',()=>{
   if(cmpActivo)return;
   pulsoTimer=setTimeout(()=>{
+    if(cmpActivo)return;
     const f=coleccion.fotos[fotoIdx];
-    const img=slides[fotoIdx].querySelector('.marco > img');
-    if(f.url_original){img.dataset.editada=img.src;img.src=f.url_original;}
-    else img.classList.add('filtro-raw');
+    const marco=slides[fotoIdx].querySelector('.marco');
+    if(f.url_original){
+      marco.insertAdjacentHTML('beforeend',`<img class="peek-antes" src="${f.url_original}" alt="">`);
+    }else{
+      marco.querySelector('img').classList.add('filtro-raw');
+    }
     $('peek').classList.add('visible');
   },260);
 },{passive:true});
 ['touchend','touchmove','touchcancel'].forEach(ev=>zona.addEventListener(ev,()=>{
   clearTimeout(pulsoTimer);
+  if(cmpActivo)return; /* jamás interferir con el comparador */
   slides.forEach(s=>{
-    const img=s.querySelector('.marco > img');
-    if(img.dataset.editada){img.src=img.dataset.editada;delete img.dataset.editada;}
-    img.classList.remove('filtro-raw');
+    s.querySelectorAll('.peek-antes').forEach(x=>x.remove());
+    s.querySelector('.marco > img').classList.remove('filtro-raw');
   });
   $('peek').classList.remove('visible');
 },{passive:true}));
 
-/* comparador antes/después: usa el original real si existe.
-   Se fija el tamaño del marco ANTES de intercambiar imágenes, para que
-   "antes" y "después" se vean exactamente en el mismo tamaño aunque
-   el archivo original tenga otras dimensiones o proporción. */
+/* comparador antes/después.
+   La foto editada (base) NUNCA se toca: el "antes" va en una capa propia
+   superpuesta, recortada por la izquierda. Así ningún otro gesto puede
+   romper el estado, y ambas se ven exactamente al mismo tamaño. */
 function alternarComparador(){cmpActivo?quitarComparador():ponerComparador();}
 function ponerComparador(){
+  const f=coleccion.fotos[fotoIdx];
+  if(!f.url_original){toast('Esta foto no tiene original subido');return;}
   cmpActivo=true;
   $('btn-cmp').classList.add('activo');
-  const f=coleccion.fotos[fotoIdx];
   const marco=slides[fotoIdx].querySelector('.marco');
-  const base=marco.querySelector('img');
 
-  /* 1. fija el tamaño actual del marco en píxeles para que no cambie al meter otra imagen */
+  /* fija el tamaño actual del marco en píxeles para que nada lo mueva */
   const r=marco.getBoundingClientRect();
   marco.style.width=r.width+'px';
   marco.style.height=r.height+'px';
 
-  /* 2. muestra el "antes" en la capa base */
-  if(f.url_original){base.dataset.editada=base.src;base.src=f.url_original;}
-  else base.classList.add('filtro-raw');
-
-  /* 3. capa "después" superpuesta, con la MISMA técnica de encaje (contain) que el resto de la app */
   marco.insertAdjacentHTML('beforeend',`
-    <div class="cmp-capa" style="--pos:0%"><img src="${f.url}" alt=""></div>
+    <div class="cmp-antes" style="--pos:0%"><img alt=""></div>
     <div class="cmp-div" style="--pos:0%"><div class="asa">⟨⟩</div></div>
     <span class="cmp-tag a">Antes</span><span class="cmp-tag b">Después</span>`);
-  const capa=marco.querySelector('.cmp-capa'),divi=marco.querySelector('.cmp-div');
+  const capa=marco.querySelector('.cmp-antes'),divi=marco.querySelector('.cmp-div');
+  const imgAntes=capa.querySelector('img');
+  imgAntes.onerror=()=>{toast('No se pudo cargar la foto original — vuelve a subirla desde Info',5000);quitarComparador();};
+  imgAntes.src=f.url_original;
 
-  /* 4. barrido de entrada suave, de 0% a 50% */
-  capa.style.transition='clip-path .7s cubic-bezier(.22,1,.36,1)';
-  divi.style.transition='left .7s cubic-bezier(.22,1,.36,1)';
+  /* barrido de entrada suave, de 0% a 50% */
   requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    capa.classList.add('animando');divi.classList.add('animando');
     capa.style.setProperty('--pos','50%');
     divi.style.setProperty('--pos','50%');
+    setTimeout(()=>{capa.classList.remove('animando');divi.classList.remove('animando');},740);
   }));
-  setTimeout(()=>{capa.style.transition='';divi.style.transition='';},720);
 
-  /* 5. arrastre manual, fluido y 1:1 con el dedo */
+  /* arrastre 1:1 con el dedo */
   let arr=false;
   const mover=x=>{
     const rr=marco.getBoundingClientRect();
     const pos=Math.min(96,Math.max(4,(x-rr.left)/rr.width*100))+'%';
     capa.style.setProperty('--pos',pos);divi.style.setProperty('--pos',pos);
   };
-  marco.onpointerdown=e=>{
-    arr=true;marco.setPointerCapture(e.pointerId);
-    capa.style.transition='';divi.style.transition='';
-    mover(e.clientX);
-  };
+  marco.onpointerdown=e=>{arr=true;marco.setPointerCapture(e.pointerId);mover(e.clientX);};
   marco.onpointermove=e=>{if(arr)mover(e.clientX);};
   marco.onpointerup=marco.onpointercancel=()=>arr=false;
-  if(f.url_original&&f.url_original===f.url){
-    toast('El original y la foto editada parecen ser el mismo archivo — súbelo de nuevo desde Info',4500);
-  }else{
-    toast(f.url_original?'Comparando con el archivo original':'Arrastra el divisor para comparar');
+  if(f.url_original===f.url){
+    toast('El original y la editada parecen ser el mismo archivo — súbelo de nuevo desde Info',4500);
   }
 }
 function quitarComparador(){
@@ -724,10 +710,7 @@ function quitarComparador(){
   $('btn-cmp').classList.remove('activo');
   slides.forEach(s=>{
     const m=s.querySelector('.marco');
-    m.querySelectorAll('.cmp-capa,.cmp-div,.cmp-tag').forEach(x=>x.remove());
-    const img=m.querySelector('img');
-    if(img.dataset.editada){img.src=img.dataset.editada;delete img.dataset.editada;}
-    img.classList.remove('filtro-raw');
+    m.querySelectorAll('.cmp-antes,.cmp-div,.cmp-tag').forEach(x=>x.remove());
     m.onpointerdown=m.onpointermove=m.onpointerup=null;
     m.style.width='';m.style.height='';
   });
