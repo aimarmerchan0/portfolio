@@ -292,7 +292,7 @@ async function reproducirViaje(){
   reproduciendoViaje=true;
   $('btn-viaje').style.display='none';
   $('btn-detener-viaje').style.display='inline-flex';
-  $('mapa-cartas').classList.add('oculta');
+  if($('mapa-cartas'))$('mapa-cartas').classList.add('oculta');
   for(const l of ruta){
     if(!reproduciendoViaje)break;
     await volarAlugar(l);
@@ -313,9 +313,14 @@ function volarAlugar(l){
 }
 function mostrarTarjetaViaje(l){
   return new Promise(resolve=>{
-    $('tarjeta-viaje-nombre').textContent=l.nombre;
-    $('tarjeta-viaje-fecha').textContent=fechaMostrar(l.fechaMin);
-    const grid=$('tarjeta-viaje-grid');
+    const nombreEl=$('tarjeta-viaje-nombre'),fechaEl=$('tarjeta-viaje-fecha'),grid=$('tarjeta-viaje-grid'),tarjetaEl=$('tarjeta-viaje');
+    if(!nombreEl||!fechaEl||!grid||!tarjetaEl){
+      console.warn('Faltan elementos de la tarjeta de viaje en el HTML — revisa que index.html esté actualizado');
+      setTimeout(resolve,900);
+      return;
+    }
+    nombreEl.textContent=l.nombre;
+    fechaEl.textContent=fechaMostrar(l.fechaMin);
     grid.innerHTML='';
     const MAX_VISIBLE=15;
     const fotos=l.fotos.slice(0,MAX_VISIBLE);
@@ -337,18 +342,19 @@ function mostrarTarjetaViaje(l){
       mas.style.animationDelay=Math.round((n-1)*paso)+'ms';
       grid.appendChild(mas);
     }
-    $('tarjeta-viaje').classList.add('visible');
+    tarjetaEl.classList.add('visible');
     setTimeout(resolve,950);
   });
 }
 function ocultarTarjetaViaje(){
-  $('tarjeta-viaje').classList.remove('visible');
+  const el=$('tarjeta-viaje');
+  if(el)el.classList.remove('visible');
 }
 function detenerViaje(){
   reproduciendoViaje=false;
   $('btn-viaje').style.display='';
   $('btn-detener-viaje').style.display='none';
-  $('mapa-cartas').classList.remove('oculta');
+  if($('mapa-cartas'))$('mapa-cartas').classList.remove('oculta');
   ocultarTarjetaViaje();
 }
 function renderMarcadores(encuadrar=false){
@@ -624,7 +630,7 @@ function hojaGaleria(gid){
       <div class="cab-hoja"><b>${g.nombre}</b><span>${n} fotos${l.nombre?' · '+l.nombre:''}${g.anio?' · '+g.anio:''}</span></div>
       <button class="opcion" onclick="cerrarHoja();abrirGaleria('${gid}')">Abrir galería</button>
       <button class="opcion" onclick="compartirEnlace('galeria/${gid}','${g.nombre.replace(/'/g,"\\'")}')">Compartir enlace</button>
-      ${n?`<button class="opcion" onclick="cerrarHoja();exportarAlbum('galeria','${gid}')">📖 Exportar álbum (PDF)</button>`:''}
+      ${n?`<button class="opcion" onclick="cerrarHoja();abrirDisenadorAlbum('galeria','${gid}')">📖 Diseñar y exportar álbum</button>`:''}
       ${l.id?`<button class="opcion" onclick="cerrarHoja();abrirLugar('${l.id}')">Ver todo lo de ${l.nombre}</button>`:''}
       ${SESION?`
         <button class="opcion" onclick="cerrarHoja();formGaleria('${gid}')">Editar galería</button>
@@ -645,7 +651,7 @@ function hojaLugar(lid){
       <div class="cab-hoja"><b>${l.nombre}</b><span>${l.region||''} · ${n} fotos · ${(+l.lat).toFixed(4)}, ${(+l.lng).toFixed(4)}</span></div>
       <button class="opcion" onclick="cerrarHoja();abrirLugar('${lid}')">Ver las ${n} fotos</button>
       <button class="opcion" onclick="compartirEnlace('lugar/${lid}','${l.nombre.replace(/'/g,"\\'")}')">Compartir enlace</button>
-      ${n?`<button class="opcion" onclick="cerrarHoja();exportarAlbum('lugar','${lid}')">📖 Exportar álbum (PDF)</button>`:''}
+      ${n?`<button class="opcion" onclick="cerrarHoja();abrirDisenadorAlbum('lugar','${lid}')">📖 Diseñar y exportar álbum</button>`:''}
       ${SESION?`
         <button class="opcion" onclick="cerrarHoja();subirFotosALugar('${lid}')">Añadir fotos a este lugar</button>
         <button class="opcion" onclick="cerrarHoja();formLugar('${lid}')">Editar lugar</button>
@@ -736,7 +742,6 @@ const carro=$('foto-carro'),tira=$('tira'),pFotoEl=$('p-foto');
 function abrirFoto(j,origenEl=null){
   fotoIdx=j;
   carro.innerHTML='';tira.innerHTML='';
-  const reducidoMovimiento=matchMedia('(prefers-reduced-motion:reduce)').matches;
   coleccion.fotos.forEach((f,k)=>{
     const s=document.createElement('div');
     s.className='foto-slide';
@@ -753,19 +758,8 @@ function abrirFoto(j,origenEl=null){
   celdas=celdasColeccion;
   irAFoto(j,true);
 
-  /* apertura suave: escala sutil + fundido, natural como iOS */
-  const reducido=reducidoMovimiento;
-  if(!reducido){
-    pFotoEl.classList.add('suave-pre');
-    pFotoEl.classList.add('abierta');
-    requestAnimationFrame(()=>requestAnimationFrame(()=>{
-      pFotoEl.classList.add('suave-in');
-      pFotoEl.classList.remove('suave-pre');
-      setTimeout(()=>pFotoEl.classList.remove('suave-in'),480);
-    }));
-  }else{
-    pFotoEl.classList.add('abierta');
-  }
+  /* deslizamiento simple: el mismo patrón fiable que usan el resto de paneles */
+  pFotoEl.classList.add('abierta');
   document.body.classList.add('nivel2');
   const f=coleccion.fotos[j];
   const baseHash=hashDeColeccion(coleccion);
@@ -773,17 +767,8 @@ function abrirFoto(j,origenEl=null){
 }
 function volverDeFoto(){
   quitarComparador();
-  const reducido=matchMedia('(prefers-reduced-motion:reduce)').matches;
-  if(!reducido){
-    pFotoEl.classList.add('suave-out');
-    setTimeout(()=>{
-      pFotoEl.classList.remove('abierta','suave-out');
-      document.body.classList.remove('nivel2');
-    },340);
-  }else{
-    pFotoEl.classList.remove('abierta');
-    document.body.classList.remove('nivel2');
-  }
+  pFotoEl.classList.remove('abierta');
+  document.body.classList.remove('nivel2');
   actualizarURL(hashDeColeccion(coleccion));
 }
 function irAFoto(k,inmediato=false){
@@ -1082,18 +1067,156 @@ function cargarJsPDF(){
   });
   return _jsPDFCargando;
 }
-async function exportarAlbum(tipo,id){
-  const titulo=tipo==='galeria'?galeriaDe(id).nombre:lugarDe(id).nombre;
-  const fotos=(tipo==='galeria'?fotosDeGaleria(id):fotosDeLugar(id)).filter(f=>!esFormatoNoVisible(f.url));
-  if(!fotos.length){toast('No hay fotos que exportar');return;}
-  toast(`Generando álbum de ${fotos.length} foto${fotos.length!==1?'s':''}… puede tardar un poco`,4500);
+/* ═══ DISEÑADOR DE ÁLBUM: eliges qué fotos entran, el diseño de página,
+   si las esquinas van redondeadas, y puedes ver una vista previa antes
+   de generar el PDF final. ═══ */
+let _albumConfig=null;
+function abrirDisenadorAlbum(tipo,id){
+  const todasFotos=(tipo==='galeria'?fotosDeGaleria(id):fotosDeLugar(id)).filter(f=>!esFormatoNoVisible(f.url));
+  if(!todasFotos.length){toast('No hay fotos que exportar');return;}
+  _albumConfig={tipo,id,fotos:todasFotos,seleccionadas:new Set(todasFotos.map(f=>f.id)),layout:'1',redondeado:false};
+  pintarDisenadorAlbum();
+}
+function tituloAlbum(){
+  const c=_albumConfig;
+  return c.tipo==='galeria'?galeriaDe(c.id).nombre:lugarDe(c.id).nombre;
+}
+function pintarDisenadorAlbum(){
+  const c=_albumConfig;
+  hoja(`
+    <div class="grupo">
+      <div class="cab-hoja"><b>Diseñar álbum</b><span>${tituloAlbum()} · ${c.seleccionadas.size} de ${c.fotos.length} fotos elegidas</span></div>
+      <div class="campo">
+        <label>Fotos por página</label>
+        <div class="opciones-layout">
+          <button class="chip-layout ${c.layout==='1'?'activo':''}" onclick="cambiarLayoutAlbum('1')">1 foto</button>
+          <button class="chip-layout ${c.layout==='2'?'activo':''}" onclick="cambiarLayoutAlbum('2')">2 fotos</button>
+          <button class="chip-layout ${c.layout==='4'?'activo':''}" onclick="cambiarLayoutAlbum('4')">4 fotos</button>
+        </div>
+      </div>
+      <div class="campo fila-check">
+        <label for="chk-redondeado">Esquinas redondeadas</label>
+        <input type="checkbox" id="chk-redondeado" ${c.redondeado?'checked':''} onchange="alternarRedondeadoAlbum()">
+      </div>
+    </div>
+    <div class="grupo">
+      <div class="cab-hoja">
+        <b>Fotos incluidas</b>
+        <span>Toca una foto para quitarla o añadirla</span>
+      </div>
+      <button class="opcion" onclick="alternarSeleccionTodasAlbum()">${c.seleccionadas.size===c.fotos.length?'Deseleccionar todas':'Seleccionar todas'}</button>
+      <div id="lista-fotos-album"></div>
+    </div>
+    <button class="principal" style="background:var(--fondo2);color:var(--tinta)" onclick="previsualizarAlbum()">👁 Ver vista previa de una página</button>
+    <div id="preview-album-wrap" style="display:none">
+      <canvas id="preview-album-canvas"></canvas>
+      <p class="nota-form" style="text-align:center">Así se vería cada página del álbum</p>
+    </div>
+    <button class="principal" onclick="generarAlbumConfigurado()">📖 Generar PDF</button>
+    <button class="cancelar" onclick="cerrarHoja()">Cancelar</button>`);
+  pintarListaFotosAlbum();
+}
+function pintarListaFotosAlbum(){
+  const c=_albumConfig;
+  const cont=$('lista-fotos-album');
+  if(!cont)return;
+  cont.innerHTML=c.fotos.map(f=>`
+    <button class="foto-chip-album ${c.seleccionadas.has(f.id)?'':'apagada'}" onclick="alternarFotoAlbum('${f.id}')">
+      <img src="${miniDe(f)}" alt="">
+      <span class="marca-check">${c.seleccionadas.has(f.id)?'✓':''}</span>
+    </button>`).join('');
+}
+function alternarFotoAlbum(fid){
+  const c=_albumConfig;
+  if(c.seleccionadas.has(fid))c.seleccionadas.delete(fid);
+  else c.seleccionadas.add(fid);
+  $('preview-album-wrap').style.display='none';
+  document.querySelector('.cab-hoja span').textContent=`${tituloAlbum()} · ${c.seleccionadas.size} de ${c.fotos.length} fotos elegidas`;
+  pintarListaFotosAlbum();
+}
+function cambiarLayoutAlbum(layout){
+  _albumConfig.layout=layout;
+  $('preview-album-wrap').style.display='none';
+  pintarDisenadorAlbum();
+}
+function alternarRedondeadoAlbum(){
+  _albumConfig.redondeado=$('chk-redondeado').checked;
+  $('preview-album-wrap').style.display='none';
+}
+function alternarSeleccionTodasAlbum(){
+  const c=_albumConfig;
+  if(c.seleccionadas.size===c.fotos.length)c.seleccionadas.clear();
+  else c.fotos.forEach(f=>c.seleccionadas.add(f.id));
+  pintarDisenadorAlbum();
+}
+
+/* ─── dibuja una página (1, 2 o 4 huecos) sobre cualquier contexto 2D — se
+   reutiliza tanto para la vista previa en pantalla como para el PDF final ─── */
+function calcularCeldasLayout(n,PW,PH){
+  const m=Math.round(PW*0.035),g=Math.round(PW*0.014);
+  if(n<=1)return [{x:m,y:m,w:PW-m*2,h:PH-m*2}];
+  if(n===2)return [
+    {x:m,y:m,w:(PW-m*2-g)/2,h:PH-m*2},
+    {x:m+(PW-m*2-g)/2+g,y:m,w:(PW-m*2-g)/2,h:PH-m*2},
+  ];
+  const cw=(PW-m*2-g)/2, ch=(PH-m*2-g)/2;
+  return [
+    {x:m,y:m,w:cw,h:ch},{x:m+cw+g,y:m,w:cw,h:ch},
+    {x:m,y:m+ch+g,w:cw,h:ch},{x:m+cw+g,y:m+ch+g,w:cw,h:ch},
+  ];
+}
+function dibujarImagenCover(ctx,bitmap,x,y,w,h,radio){
+  ctx.save();
+  if(radio>0)trazarRectRedondeado(ctx,x,y,w,h,radio);
+  else ctx.rect(x,y,w,h);
+  ctx.clip();
+  const escala=Math.max(w/bitmap.width,h/bitmap.height);
+  const iw=bitmap.width*escala, ih=bitmap.height*escala;
+  ctx.drawImage(bitmap,x+(w-iw)/2,y+(h-ih)/2,iw,ih);
+  ctx.restore();
+}
+async function dibujarPaginaAlbum(ctx,fotosPagina,PW,PH,redondeado){
+  ctx.fillStyle='#FAFAF7';
+  ctx.fillRect(0,0,PW,PH);
+  const celdas=calcularCeldasLayout(fotosPagina.length,PW,PH);
+  for(let i=0;i<fotosPagina.length;i++){
+    try{
+      const res=await fetch(fotosPagina[i].url);
+      const blob=await res.blob();
+      const bitmap=await createImageBitmap(blob);
+      dibujarImagenCover(ctx,bitmap,celdas[i].x,celdas[i].y,celdas[i].w,celdas[i].h,redondeado?Math.round(PW*0.014):0);
+    }catch(e){ console.warn('foto de álbum omitida',e); }
+  }
+}
+async function previsualizarAlbum(){
+  const c=_albumConfig;
+  const seleccionadas=c.fotos.filter(f=>c.seleccionadas.has(f.id));
+  if(!seleccionadas.length){toast('Elige al menos una foto');return;}
+  toast('Generando vista previa…');
+  const porPagina=parseInt(c.layout,10);
+  const primeraPagina=seleccionadas.slice(0,porPagina);
+  const wrap=$('preview-album-wrap'),cv=$('preview-album-canvas');
+  const PW=560,PH=420;
+  cv.width=PW;cv.height=PH;
+  await dibujarPaginaAlbum(cv.getContext('2d'),primeraPagina,PW,PH,c.redondeado);
+  wrap.style.display='block';
+  wrap.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+async function generarAlbumConfigurado(){
+  const c=_albumConfig;
+  const seleccionadas=c.fotos.filter(f=>c.seleccionadas.has(f.id));
+  if(!seleccionadas.length){toast('Elige al menos una foto');return;}
+  const titulo=tituloAlbum();
+  const porPagina=parseInt(c.layout,10);
+  const redondeado=c.redondeado;
+  cerrarHoja();
+  toast(`Generando álbum de ${seleccionadas.length} foto${seleccionadas.length!==1?'s':''}… puede tardar un poco`,4500);
   try{
     await cargarJsPDF();
     const {jsPDF}=window.jspdf;
     const PW=1200,PH=900;
     const doc=new jsPDF({unit:'px',format:[PW,PH],orientation:'landscape'});
 
-    /* portada */
     doc.setFillColor(20,20,18);
     doc.rect(0,0,PW,PH,'F');
     doc.setTextColor(250,250,247);
@@ -1103,38 +1226,18 @@ async function exportarAlbum(tipo,id){
     doc.setFont('helvetica','normal');
     doc.setFontSize(15);
     doc.setTextColor(190,190,184);
-    doc.text(PERFIL.nombre+' · '+fotos.length+' fotos',PW/2,PH/2+32,{align:'center'});
+    doc.text(PERFIL.nombre+' · '+seleccionadas.length+' fotos',PW/2,PH/2+32,{align:'center'});
 
-    for(let i=0;i<fotos.length;i++){
-      const f=fotos[i];
-      subiendo(`Preparando página ${i+1} de ${fotos.length}…`);
-      try{
-        const res=await fetch(f.url);
-        if(!res.ok)continue;
-        const blob=await res.blob();
-        const bitmap=await createImageBitmap(blob);
-        const cv=document.createElement('canvas');
-        cv.width=bitmap.width;cv.height=bitmap.height;
-        cv.getContext('2d').drawImage(bitmap,0,0);
-        const dataUrl=cv.toDataURL('image/jpeg',0.87);
-
-        doc.addPage([PW,PH],'landscape');
-        doc.setFillColor(250,250,247);
-        doc.rect(0,0,PW,PH,'F');
-        const margen=64;
-        const maxW=PW-margen*2, maxH=PH-margen*2-36;
-        const escala=Math.min(maxW/bitmap.width,maxH/bitmap.height);
-        const w=bitmap.width*escala, h=bitmap.height*escala;
-        const x=(PW-w)/2, y=(PH-h)/2-8;
-        doc.addImage(dataUrl,'JPEG',x,y,w,h);
-        const pieTxt=[f.titulo,f.fechaEfectiva?fechaMostrar(f.fechaEfectiva):null].filter(Boolean).join(' · ');
-        if(pieTxt){
-          doc.setTextColor(140,140,134);
-          doc.setFontSize(11);
-          doc.setFont('helvetica','normal');
-          doc.text(pieTxt,PW/2,y+h+24,{align:'center'});
-        }
-      }catch(errFoto){ console.warn('Página omitida por error en una foto',errFoto); }
+    const totalPaginas=Math.ceil(seleccionadas.length/porPagina);
+    for(let i=0;i<seleccionadas.length;i+=porPagina){
+      const grupo=seleccionadas.slice(i,i+porPagina);
+      subiendo(`Preparando página ${Math.floor(i/porPagina)+1} de ${totalPaginas}…`);
+      const cv=document.createElement('canvas');
+      cv.width=PW;cv.height=PH;
+      const ctx=cv.getContext('2d');
+      await dibujarPaginaAlbum(ctx,grupo,PW,PH,redondeado);
+      doc.addPage([PW,PH],'landscape');
+      doc.addImage(cv.toDataURL('image/jpeg',0.9),'JPEG',0,0,PW,PH);
     }
     subidaLista();
     doc.save(titulo.replace(/[^\w\-]+/g,'_')+'-album.pdf');
