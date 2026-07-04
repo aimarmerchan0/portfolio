@@ -156,6 +156,25 @@ function leerExifArchivo(file) {
   });
 }
 
+/* ─── borrador de álbum: se guarda en Supabase para poder seguir editándolo luego ─── */
+async function guardarBorradorAlbumDB(tipo,referenciaId,paginas){
+  if(MODO_DEMO||!sb)return false;
+  const {error}=await sb.from('borradores_album')
+    .upsert({tipo,referencia_id:referenciaId,paginas,actualizado:new Date().toISOString()},{onConflict:'tipo,referencia_id'});
+  if(error){console.error(error);toastAdmin('No se pudo guardar el borrador: '+error.message,4500);return false;}
+  return true;
+}
+async function cargarBorradorAlbumDB(tipo,referenciaId){
+  if(MODO_DEMO||!sb)return null;
+  const {data,error}=await sb.from('borradores_album').select('paginas').eq('tipo',tipo).eq('referencia_id',referenciaId).maybeSingle();
+  if(error){console.error(error);return null;}
+  return data?data.paginas:null;
+}
+async function borrarBorradorAlbumDB(tipo,referenciaId){
+  if(MODO_DEMO||!sb)return;
+  await sb.from('borradores_album').delete().eq('tipo',tipo).eq('referencia_id',referenciaId);
+}
+
 const lugarDe = id => DATOS.lugares.find(l => l.id === id);
 const galeriaDe = id => DATOS.galerias.find(g => g.id === id);
 function fechaEfectivaFoto(f){

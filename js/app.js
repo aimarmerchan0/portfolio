@@ -284,7 +284,19 @@ function alternarVistaMapa(){
 }
 
 /* ═══ recorrido cinemático: la cámara vuela de lugar en lugar en orden cronológico ═══ */
-let reproduciendoViaje=false;
+let reproduciendoViaje=false,viajeEnPausa=false,_resolverPausaViaje=null;
+function esperarSiPausado(){
+  return new Promise(resolve=>{
+    if(!viajeEnPausa){resolve();return;}
+    _resolverPausaViaje=resolve;
+  });
+}
+function pausarViaje(){ viajeEnPausa=true; }
+function reanudarViaje(){
+  if(!viajeEnPausa)return;
+  viajeEnPausa=false;
+  if(_resolverPausaViaje){const r=_resolverPausaViaje;_resolverPausaViaje=null;r();}
+}
 async function reproducirViaje(){
   if(!mapa||reproduciendoViaje)return;
   const ruta=lugaresOrdenadosPorFecha();
@@ -299,6 +311,7 @@ async function reproducirViaje(){
     if(!reproduciendoViaje)break;
     await mostrarTarjetaViaje(l);
     await esperar(1700);
+    await esperarSiPausado(); /* si se abrió una foto, esperamos aquí hasta que se cierre */
     if(!reproduciendoViaje)break;
     ocultarTarjetaViaje();
     await esperar(280);
@@ -333,18 +346,30 @@ function mostrarTarjetaViaje(l){
       img.loading='eager';
       img.src=miniDe(f);
       img.style.animationDelay=Math.round(i*paso)+'ms';
+      img.onclick=()=>abrirFotoDeViaje(l,i);
       grid.appendChild(img);
     });
     if(restantes>0){
-      const mas=document.createElement('div');
+      const mas=document.createElement('button');
       mas.className='foto-viaje-mas';
       mas.textContent='+'+restantes;
       mas.style.animationDelay=Math.round((n-1)*paso)+'ms';
+      mas.onclick=()=>abrirFotoDeViaje(l,fotos.length);
       grid.appendChild(mas);
     }
     tarjetaEl.classList.add('visible');
     setTimeout(resolve,950);
   });
+}
+/* al tocar una foto durante el recorrido: se pausa el viaje, se ve la foto a
+   pantalla completa con esquinas redondeadas, se puede pasar entre las fotos
+   de ese mismo lugar, y al cerrar se reanuda el recorrido automáticamente */
+function abrirFotoDeViaje(l,idx){
+  pausarViaje();
+  coleccion={tipo:'viaje-lugar',titulo:l.nombre,fotos:l.fotos,mostrarOrigen:false};
+  celdasColeccion=new Array(l.fotos.length).fill(null);
+  pFotoEl.classList.add('desde-viaje');
+  abrirFoto(idx);
 }
 function ocultarTarjetaViaje(){
   const el=$('tarjeta-viaje');
@@ -630,11 +655,11 @@ function hojaGaleria(gid){
       <div class="cab-hoja"><b>${g.nombre}</b><span>${n} fotos${l.nombre?' · '+l.nombre:''}${g.anio?' · '+g.anio:''}</span></div>
       <button class="opcion" onclick="cerrarHoja();abrirGaleria('${gid}')">Abrir galería</button>
       <button class="opcion" onclick="compartirEnlace('galeria/${gid}','${g.nombre.replace(/'/g,"\\'")}')">Compartir enlace</button>
-      ${n?`<button class="opcion" onclick="cerrarHoja();abrirDisenadorAlbum('galeria','${gid}')">📖 Diseñar y exportar álbum</button>`:''}
       ${l.id?`<button class="opcion" onclick="cerrarHoja();abrirLugar('${l.id}')">Ver todo lo de ${l.nombre}</button>`:''}
       ${SESION?`
         <button class="opcion" onclick="cerrarHoja();formGaleria('${gid}')">Editar galería</button>
         <button class="opcion" onclick="alternarDestacadaGaleria('${gid}')">${g.destacada?'★ Quitar de destacadas':'☆ Marcar como destacada'}</button>
+        ${n?`<button class="opcion" onclick="cerrarHoja();abrirDisenadorAlbum('galeria','${gid}')">📖 Diseñar álbum (PDF)</button>`:''}
         <button class="opcion peligro" onclick="eliminarGaleria('${gid}')">Eliminar galería</button>`:''}
     </div>
     <button class="cancelar" onclick="cerrarHoja()">Cancelar</button>`);
@@ -651,11 +676,11 @@ function hojaLugar(lid){
       <div class="cab-hoja"><b>${l.nombre}</b><span>${l.region||''} · ${n} fotos · ${(+l.lat).toFixed(4)}, ${(+l.lng).toFixed(4)}</span></div>
       <button class="opcion" onclick="cerrarHoja();abrirLugar('${lid}')">Ver las ${n} fotos</button>
       <button class="opcion" onclick="compartirEnlace('lugar/${lid}','${l.nombre.replace(/'/g,"\\'")}')">Compartir enlace</button>
-      ${n?`<button class="opcion" onclick="cerrarHoja();abrirDisenadorAlbum('lugar','${lid}')">📖 Diseñar y exportar álbum</button>`:''}
       ${SESION?`
         <button class="opcion" onclick="cerrarHoja();subirFotosALugar('${lid}')">Añadir fotos a este lugar</button>
         <button class="opcion" onclick="cerrarHoja();formLugar('${lid}')">Editar lugar</button>
         <button class="opcion" onclick="cerrarHoja();reubicarLugar('${lid}')">Cambiar ubicación en el mapa</button>
+        ${n?`<button class="opcion" onclick="cerrarHoja();abrirDisenadorAlbum('lugar','${lid}')">📖 Diseñar álbum (PDF)</button>`:''}
         <button class="opcion peligro" onclick="eliminarLugar('${lid}')">Eliminar lugar</button>`:''}
     </div>
     <button class="cancelar" onclick="cerrarHoja()">Cancelar</button>`);
@@ -770,6 +795,10 @@ function volverDeFoto(){
   pFotoEl.classList.remove('abierta');
   document.body.classList.remove('nivel2');
   actualizarURL(hashDeColeccion(coleccion));
+  if(pFotoEl.classList.contains('desde-viaje')){
+    pFotoEl.classList.remove('desde-viaje');
+    reanudarViaje();
+  }
 }
 function irAFoto(k,inmediato=false){
   fotoIdx=k;
@@ -1067,106 +1096,57 @@ function cargarJsPDF(){
   });
   return _jsPDFCargando;
 }
-/* ═══ DISEÑADOR DE ÁLBUM: eliges qué fotos entran, el diseño de página,
-   si las esquinas van redondeadas, y puedes ver una vista previa antes
-   de generar el PDF final. ═══ */
-let _albumConfig=null;
-function abrirDisenadorAlbum(tipo,id){
-  const todasFotos=(tipo==='galeria'?fotosDeGaleria(id):fotosDeLugar(id)).filter(f=>!esFormatoNoVisible(f.url));
-  if(!todasFotos.length){toast('No hay fotos que exportar');return;}
-  _albumConfig={tipo,id,fotos:todasFotos,seleccionadas:new Set(todasFotos.map(f=>f.id)),layout:'1',redondeado:false};
-  pintarDisenadorAlbum();
-}
-function tituloAlbum(){
-  const c=_albumConfig;
-  return c.tipo==='galeria'?galeriaDe(c.id).nombre:lugarDe(c.id).nombre;
-}
-function pintarDisenadorAlbum(){
-  const c=_albumConfig;
-  hoja(`
-    <div class="grupo">
-      <div class="cab-hoja"><b>Diseñar álbum</b><span>${tituloAlbum()} · ${c.seleccionadas.size} de ${c.fotos.length} fotos elegidas</span></div>
-      <div class="campo">
-        <label>Fotos por página</label>
-        <div class="opciones-layout">
-          <button class="chip-layout ${c.layout==='1'?'activo':''}" onclick="cambiarLayoutAlbum('1')">1 foto</button>
-          <button class="chip-layout ${c.layout==='2'?'activo':''}" onclick="cambiarLayoutAlbum('2')">2 fotos</button>
-          <button class="chip-layout ${c.layout==='4'?'activo':''}" onclick="cambiarLayoutAlbum('4')">4 fotos</button>
-        </div>
-      </div>
-      <div class="campo fila-check">
-        <label for="chk-redondeado">Esquinas redondeadas</label>
-        <input type="checkbox" id="chk-redondeado" ${c.redondeado?'checked':''} onchange="alternarRedondeadoAlbum()">
-      </div>
-    </div>
-    <div class="grupo">
-      <div class="cab-hoja">
-        <b>Fotos incluidas</b>
-        <span>Toca una foto para quitarla o añadirla</span>
-      </div>
-      <button class="opcion" onclick="alternarSeleccionTodasAlbum()">${c.seleccionadas.size===c.fotos.length?'Deseleccionar todas':'Seleccionar todas'}</button>
-      <div id="lista-fotos-album"></div>
-    </div>
-    <button class="principal" style="background:var(--fondo2);color:var(--tinta)" onclick="previsualizarAlbum()">👁 Ver vista previa de una página</button>
-    <div id="preview-album-wrap" style="display:none">
-      <canvas id="preview-album-canvas"></canvas>
-      <p class="nota-form" style="text-align:center">Así se vería cada página del álbum</p>
-    </div>
-    <button class="principal" onclick="generarAlbumConfigurado()">📖 Generar PDF</button>
-    <button class="cancelar" onclick="cerrarHoja()">Cancelar</button>`);
-  pintarListaFotosAlbum();
-}
-function pintarListaFotosAlbum(){
-  const c=_albumConfig;
-  const cont=$('lista-fotos-album');
-  if(!cont)return;
-  cont.innerHTML=c.fotos.map(f=>`
-    <button class="foto-chip-album ${c.seleccionadas.has(f.id)?'':'apagada'}" onclick="alternarFotoAlbum('${f.id}')">
-      <img src="${miniDe(f)}" alt="">
-      <span class="marca-check">${c.seleccionadas.has(f.id)?'✓':''}</span>
-    </button>`).join('');
-}
-function alternarFotoAlbum(fid){
-  const c=_albumConfig;
-  if(c.seleccionadas.has(fid))c.seleccionadas.delete(fid);
-  else c.seleccionadas.add(fid);
-  $('preview-album-wrap').style.display='none';
-  document.querySelector('.cab-hoja span').textContent=`${tituloAlbum()} · ${c.seleccionadas.size} de ${c.fotos.length} fotos elegidas`;
-  pintarListaFotosAlbum();
-}
-function cambiarLayoutAlbum(layout){
-  _albumConfig.layout=layout;
-  $('preview-album-wrap').style.display='none';
-  pintarDisenadorAlbum();
-}
-function alternarRedondeadoAlbum(){
-  _albumConfig.redondeado=$('chk-redondeado').checked;
-  $('preview-album-wrap').style.display='none';
-}
-function alternarSeleccionTodasAlbum(){
-  const c=_albumConfig;
-  if(c.seleccionadas.size===c.fotos.length)c.seleccionadas.clear();
-  else c.fotos.forEach(f=>c.seleccionadas.add(f.id));
-  pintarDisenadorAlbum();
-}
+/* ═══════════════════════════════════════════════════════════════
+   DISEÑADOR DE ÁLBUM — página a página, como maquetar un libro:
+   1. Eliges cuántas fotos lleva la página (1 a 6) y un diseño entre variantes
+   2. Ves la página con huecos vacíos; tocas cada hueco y eliges la foto
+   3. Al completarla, la añades y diseñas la siguiente
+   4. Puedes guardar el borrador (solo admin) y seguir otro día
+   ═══════════════════════════════════════════════════════════════ */
 
-/* ─── dibuja una página (1, 2 o 4 huecos) sobre cualquier contexto 2D — se
-   reutiliza tanto para la vista previa en pantalla como para el PDF final ─── */
-function calcularCeldasLayout(n,PW,PH){
+/* plantillas de diseño: cada celda son fracciones (0–1) del área de la página */
+const LAYOUTS_ALBUM={
+  1:[{id:'1-completa',nombre:'Completa',celdas:[{x:0,y:0,w:1,h:1}]}],
+  2:[
+    {id:'2-lado',nombre:'Lado a lado',celdas:[{x:0,y:0,w:.5,h:1},{x:.5,y:0,w:.5,h:1}]},
+    {id:'2-apilado',nombre:'Apiladas',celdas:[{x:0,y:0,w:1,h:.5},{x:0,y:.5,w:1,h:.5}]},
+    {id:'2-grande-pequena',nombre:'Grande + pequeña',celdas:[{x:0,y:0,w:.66,h:1},{x:.66,y:0,w:.34,h:1}]},
+  ],
+  3:[
+    {id:'3-una-dos',nombre:'Una arriba, dos abajo',celdas:[{x:0,y:0,w:1,h:.55},{x:0,y:.55,w:.5,h:.45},{x:.5,y:.55,w:.5,h:.45}]},
+    {id:'3-dos-una',nombre:'Dos arriba, una abajo',celdas:[{x:0,y:0,w:.5,h:.45},{x:.5,y:0,w:.5,h:.45},{x:0,y:.45,w:1,h:.55}]},
+    {id:'3-columnas',nombre:'Tres columnas',celdas:[{x:0,y:0,w:1/3,h:1},{x:1/3,y:0,w:1/3,h:1},{x:2/3,y:0,w:1/3,h:1}]},
+  ],
+  4:[
+    {id:'4-cuadricula',nombre:'Cuadrícula 2×2',celdas:[{x:0,y:0,w:.5,h:.5},{x:.5,y:0,w:.5,h:.5},{x:0,y:.5,w:.5,h:.5},{x:.5,y:.5,w:.5,h:.5}]},
+    {id:'4-grande-tres',nombre:'Grande + tres',celdas:[{x:0,y:0,w:.66,h:1},{x:.66,y:0,w:.34,h:1/3},{x:.66,y:1/3,w:.34,h:1/3},{x:.66,y:2/3,w:.34,h:1/3}]},
+    {id:'4-filas',nombre:'Cuatro filas',celdas:[{x:0,y:0,w:1,h:.25},{x:0,y:.25,w:1,h:.25},{x:0,y:.5,w:1,h:.25},{x:0,y:.75,w:1,h:.25}]},
+  ],
+  5:[
+    {id:'5-grande-cuatro',nombre:'Grande + cuatro',celdas:[{x:0,y:0,w:.6,h:1},{x:.6,y:0,w:.4,h:.25},{x:.6,y:.25,w:.4,h:.25},{x:.6,y:.5,w:.4,h:.25},{x:.6,y:.75,w:.4,h:.25}]},
+    {id:'5-mixta',nombre:'Tres arriba, dos abajo',celdas:[{x:0,y:0,w:1/3,h:.5},{x:1/3,y:0,w:1/3,h:.5},{x:2/3,y:0,w:1/3,h:.5},{x:0,y:.5,w:.5,h:.5},{x:.5,y:.5,w:.5,h:.5}]},
+  ],
+  6:[
+    {id:'6-2x3',nombre:'Cuadrícula 3×2',celdas:[
+      {x:0,y:0,w:1/3,h:.5},{x:1/3,y:0,w:1/3,h:.5},{x:2/3,y:0,w:1/3,h:.5},
+      {x:0,y:.5,w:1/3,h:.5},{x:1/3,y:.5,w:1/3,h:.5},{x:2/3,y:.5,w:1/3,h:.5}]},
+    {id:'6-3x2',nombre:'Cuadrícula 2×3',celdas:[
+      {x:0,y:0,w:.5,h:1/3},{x:.5,y:0,w:.5,h:1/3},
+      {x:0,y:1/3,w:.5,h:1/3},{x:.5,y:1/3,w:.5,h:1/3},
+      {x:0,y:2/3,w:.5,h:1/3},{x:.5,y:2/3,w:.5,h:1/3}]},
+  ],
+};
+function celdasDesdeLayout(layout,PW,PH){
   const m=Math.round(PW*0.035),g=Math.round(PW*0.014);
-  if(n<=1)return [{x:m,y:m,w:PW-m*2,h:PH-m*2}];
-  if(n===2)return [
-    {x:m,y:m,w:(PW-m*2-g)/2,h:PH-m*2},
-    {x:m+(PW-m*2-g)/2+g,y:m,w:(PW-m*2-g)/2,h:PH-m*2},
-  ];
-  const cw=(PW-m*2-g)/2, ch=(PH-m*2-g)/2;
-  return [
-    {x:m,y:m,w:cw,h:ch},{x:m+cw+g,y:m,w:cw,h:ch},
-    {x:m,y:m+ch+g,w:cw,h:ch},{x:m+cw+g,y:m+ch+g,w:cw,h:ch},
-  ];
+  const areaW=PW-m*2,areaH=PH-m*2;
+  return layout.celdas.map(c=>({
+    x:m+c.x*areaW+g/2, y:m+c.y*areaH+g/2,
+    w:c.w*areaW-g, h:c.h*areaH-g,
+  }));
 }
 function dibujarImagenCover(ctx,bitmap,x,y,w,h,radio){
   ctx.save();
+  ctx.beginPath();
   if(radio>0)trazarRectRedondeado(ctx,x,y,w,h,radio);
   else ctx.rect(x,y,w,h);
   ctx.clip();
@@ -1175,42 +1155,167 @@ function dibujarImagenCover(ctx,bitmap,x,y,w,h,radio){
   ctx.drawImage(bitmap,x+(w-iw)/2,y+(h-ih)/2,iw,ih);
   ctx.restore();
 }
-async function dibujarPaginaAlbum(ctx,fotosPagina,PW,PH,redondeado){
+function encontrarLayout(layoutId){
+  for(const n in LAYOUTS_ALBUM){const l=LAYOUTS_ALBUM[n].find(x=>x.id===layoutId);if(l)return l;}
+  return null;
+}
+
+/* ── estado del constructor ── */
+let _albumBuilder=null;
+
+async function abrirDisenadorAlbum(tipo,id){
+  if(!requiereAdmin())return;
+  const fotos=(tipo==='galeria'?fotosDeGaleria(id):fotosDeLugar(id)).filter(f=>!esFormatoNoVisible(f.url));
+  if(!fotos.length){toast('No hay fotos que exportar');return;}
+  const titulo=tipo==='galeria'?galeriaDe(id).nombre:lugarDe(id).nombre;
+  toast('Cargando diseñador de álbum…');
+  const borrador=await cargarBorradorAlbumDB(tipo,id);
+  _albumBuilder={tipo,id,titulo,fotos,paginas:borrador||[],redondeado:false};
+  pintarConstructorAlbum();
+}
+function pintarConstructorAlbum(){
+  const c=_albumBuilder;
+  const listaPaginas=c.paginas.map((p,i)=>{
+    const layout=encontrarLayout(p.layoutId);
+    const miniCeldas=celdasDesdeLayout(layout,120,90).map((cel,j)=>{
+      const f=c.fotos.find(x=>x.id===p.asignaciones[j]);
+      return `<div class="mini-celda" style="left:${cel.x}px;top:${cel.y}px;width:${cel.w}px;height:${cel.h}px;background-image:url('${f?miniDe(f):''}')"></div>`;
+    }).join('');
+    return `<div class="pagina-album">
+      <div class="mini-pagina">${miniCeldas}</div>
+      <div class="datos-pagina"><b>Página ${i+1}</b><span>${layout.nombre} · ${p.asignaciones.filter(Boolean).length}/${p.asignaciones.length} fotos</span></div>
+      <button class="quitar-pagina" onclick="quitarPaginaAlbum(${i})" aria-label="Eliminar página">✕</button>
+    </div>`;
+  }).join('');
+  const completas=c.paginas.filter(p=>p.asignaciones.every(Boolean)).length;
+  hoja(`
+    <div class="grupo">
+      <div class="cab-hoja"><b>${c.titulo}</b><span>Diseñador de álbum · ${c.paginas.length} página${c.paginas.length!==1?'s':''}</span></div>
+      <button class="opcion interruptor" onclick="alternarRedondeadoBuilder()">
+        <span>Esquinas redondeadas</span>
+        <span class="interruptor-visual ${c.redondeado?'activo':''}"><span class="bola"></span></span>
+      </button>
+    </div>
+    <div class="grupo">
+      <div class="cab-hoja"><b>Páginas</b><span>${c.paginas.length?'Toca una página para editarla':'Aún no has añadido ninguna'}</span></div>
+      ${listaPaginas||'<p class="vacio" style="padding:22px">Añade tu primera página abajo</p>'}
+    </div>
+    <button class="principal" style="background:var(--fondo2);color:var(--tinta)" onclick="elegirNumeroFotosPagina()">+ Añadir página</button>
+    <button class="principal" onclick="guardarBorradorBuilder()">💾 Guardar borrador</button>
+    <button class="principal" ${completas?'':'disabled'} onclick="generarAlbumDesdeBuilder()">📖 Generar PDF (${completas} página${completas!==1?'s':''} lista${completas!==1?'s':''})</button>
+    <button class="cancelar" onclick="cerrarConstructorAlbum()">Cerrar</button>`);
+  document.querySelectorAll('.pagina-album').forEach((el,i)=>{
+    el.onclick=e=>{ if(!e.target.closest('.quitar-pagina'))editarPaginaAlbum(i); };
+  });
+}
+function cerrarConstructorAlbum(){ cerrarHoja(); }
+function alternarRedondeadoBuilder(){
+  _albumBuilder.redondeado=!_albumBuilder.redondeado;
+  pintarConstructorAlbum();
+}
+function quitarPaginaAlbum(i){
+  _albumBuilder.paginas.splice(i,1);
+  pintarConstructorAlbum();
+}
+async function guardarBorradorBuilder(){
+  const c=_albumBuilder;
+  const ok=await guardarBorradorAlbumDB(c.tipo,c.id,c.paginas);
+  if(ok)toast('Borrador guardado — puedes continuar otro día');
+}
+
+/* ── elegir cuántas fotos y qué variante de diseño ── */
+function elegirNumeroFotosPagina(){
+  hoja(`
+    <div class="grupo">
+      <div class="cab-hoja"><b>Nueva página</b><span>¿Cuántas fotos lleva?</span></div>
+      <div class="opciones-numero">
+        ${[1,2,3,4,5,6].map(n=>`<button class="chip-numero" onclick="elegirVarianteLayout(${n})">${n}</button>`).join('')}
+      </div>
+    </div>
+    <button class="cancelar" onclick="pintarConstructorAlbum()">Volver</button>`);
+}
+function elegirVarianteLayout(n){
+  const variantes=LAYOUTS_ALBUM[n];
+  const opciones=variantes.map(v=>{
+    const celdas=celdasDesdeLayout(v,140,105);
+    const mini=celdas.map(c=>`<div class="mini-celda" style="left:${c.x}px;top:${c.y}px;width:${c.w}px;height:${c.h}px"></div>`).join('');
+    return `<button class="opcion-variante" onclick="crearPaginaAlbum(${n},'${v.id}')">
+      <div class="mini-pagina">${mini}</div>
+      <span>${v.nombre}</span>
+    </button>`;
+  }).join('');
+  hoja(`
+    <div class="grupo">
+      <div class="cab-hoja"><b>${n} foto${n!==1?'s':''}</b><span>Elige el diseño</span></div>
+      <div class="rejilla-variantes">${opciones}</div>
+    </div>
+    <button class="cancelar" onclick="elegirNumeroFotosPagina()">Volver</button>`);
+}
+function crearPaginaAlbum(n,layoutId){
+  _albumBuilder.paginas.push({layoutId,asignaciones:new Array(n).fill(null)});
+  editarPaginaAlbum(_albumBuilder.paginas.length-1);
+}
+
+/* ── rellenar los huecos de una página ── */
+function editarPaginaAlbum(i){
+  const c=_albumBuilder,p=c.paginas[i],layout=encontrarLayout(p.layoutId);
+  const celdas=celdasDesdeLayout(layout,300,225);
+  const huecos=celdas.map((cel,j)=>{
+    const f=c.fotos.find(x=>x.id===p.asignaciones[j]);
+    return `<button class="hueco-album ${f?'lleno':'vacio'}" style="left:${cel.x}px;top:${cel.y}px;width:${cel.w}px;height:${cel.h}px" onclick="elegirFotoParaHueco(${i},${j})">
+      ${f?`<img src="${miniDe(f)}" alt="">`:'<span>+</span>'}
+    </button>`;
+  }).join('');
+  const completa=p.asignaciones.every(Boolean);
+  hoja(`
+    <div class="grupo">
+      <div class="cab-hoja"><b>Página ${i+1}</b><span>${layout.nombre} · toca cada hueco para elegir la foto</span></div>
+      <div class="lienzo-editor"><div class="mini-pagina grande">${huecos}</div></div>
+    </div>
+    <button class="principal" ${completa?'':'disabled'} onclick="pintarConstructorAlbum()">${completa?'Página lista — continuar':'Rellena todos los huecos'}</button>
+    <button class="cancelar" onclick="quitarPaginaAlbum(${i});pintarConstructorAlbum()">Eliminar esta página</button>`);
+}
+function elegirFotoParaHueco(paginaIdx,huecoIdx){
+  const c=_albumBuilder;
+  const opciones=c.fotos.map(f=>`
+    <button class="foto-chip-album" onclick="asignarFotoAHueco(${paginaIdx},${huecoIdx},'${f.id}')">
+      <img src="${miniDe(f)}" alt="">
+    </button>`).join('');
+  hoja(`
+    <div class="grupo">
+      <div class="cab-hoja"><b>Elige la foto</b><span>Para este hueco de la página ${paginaIdx+1}</span></div>
+      <div id="lista-fotos-album">${opciones}</div>
+    </div>
+    <button class="cancelar" onclick="editarPaginaAlbum(${paginaIdx})">Volver</button>`);
+}
+function asignarFotoAHueco(paginaIdx,huecoIdx,fotoId){
+  _albumBuilder.paginas[paginaIdx].asignaciones[huecoIdx]=fotoId;
+  editarPaginaAlbum(paginaIdx);
+}
+
+/* ── generar el PDF final a partir de las páginas diseñadas ── */
+async function dibujarPaginaBuilder(ctx,pagina,PW,PH,redondeado){
+  const c=_albumBuilder,layout=encontrarLayout(pagina.layoutId);
   ctx.fillStyle='#FAFAF7';
   ctx.fillRect(0,0,PW,PH);
-  const celdas=calcularCeldasLayout(fotosPagina.length,PW,PH);
-  for(let i=0;i<fotosPagina.length;i++){
+  const celdas=celdasDesdeLayout(layout,PW,PH);
+  for(let j=0;j<celdas.length;j++){
+    const f=c.fotos.find(x=>x.id===pagina.asignaciones[j]);
+    if(!f)continue;
     try{
-      const res=await fetch(fotosPagina[i].url);
+      const res=await fetch(f.url);
       const blob=await res.blob();
       const bitmap=await createImageBitmap(blob);
-      dibujarImagenCover(ctx,bitmap,celdas[i].x,celdas[i].y,celdas[i].w,celdas[i].h,redondeado?Math.round(PW*0.014):0);
+      dibujarImagenCover(ctx,bitmap,celdas[j].x,celdas[j].y,celdas[j].w,celdas[j].h,redondeado?Math.round(PW*0.016):0);
     }catch(e){ console.warn('foto de álbum omitida',e); }
   }
 }
-async function previsualizarAlbum(){
-  const c=_albumConfig;
-  const seleccionadas=c.fotos.filter(f=>c.seleccionadas.has(f.id));
-  if(!seleccionadas.length){toast('Elige al menos una foto');return;}
-  toast('Generando vista previa…');
-  const porPagina=parseInt(c.layout,10);
-  const primeraPagina=seleccionadas.slice(0,porPagina);
-  const wrap=$('preview-album-wrap'),cv=$('preview-album-canvas');
-  const PW=560,PH=420;
-  cv.width=PW;cv.height=PH;
-  await dibujarPaginaAlbum(cv.getContext('2d'),primeraPagina,PW,PH,c.redondeado);
-  wrap.style.display='block';
-  wrap.scrollIntoView({behavior:'smooth',block:'nearest'});
-}
-async function generarAlbumConfigurado(){
-  const c=_albumConfig;
-  const seleccionadas=c.fotos.filter(f=>c.seleccionadas.has(f.id));
-  if(!seleccionadas.length){toast('Elige al menos una foto');return;}
-  const titulo=tituloAlbum();
-  const porPagina=parseInt(c.layout,10);
-  const redondeado=c.redondeado;
+async function generarAlbumDesdeBuilder(){
+  const c=_albumBuilder;
+  const paginasListas=c.paginas.filter(p=>p.asignaciones.every(Boolean));
+  if(!paginasListas.length){toast('Completa al menos una página antes de generar');return;}
   cerrarHoja();
-  toast(`Generando álbum de ${seleccionadas.length} foto${seleccionadas.length!==1?'s':''}… puede tardar un poco`,4500);
+  toast(`Generando álbum de ${paginasListas.length} página${paginasListas.length!==1?'s':''}…`,4500);
   try{
     await cargarJsPDF();
     const {jsPDF}=window.jspdf;
@@ -1222,26 +1327,25 @@ async function generarAlbumConfigurado(){
     doc.setTextColor(250,250,247);
     doc.setFont('helvetica','bold');
     doc.setFontSize(46);
-    doc.text(titulo,PW/2,PH/2-6,{align:'center',maxWidth:PW-160});
+    doc.text(c.titulo,PW/2,PH/2-6,{align:'center',maxWidth:PW-160});
     doc.setFont('helvetica','normal');
     doc.setFontSize(15);
     doc.setTextColor(190,190,184);
-    doc.text(PERFIL.nombre+' · '+seleccionadas.length+' fotos',PW/2,PH/2+32,{align:'center'});
+    doc.text(PERFIL.nombre,PW/2,PH/2+32,{align:'center'});
 
-    const totalPaginas=Math.ceil(seleccionadas.length/porPagina);
-    for(let i=0;i<seleccionadas.length;i+=porPagina){
-      const grupo=seleccionadas.slice(i,i+porPagina);
-      subiendo(`Preparando página ${Math.floor(i/porPagina)+1} de ${totalPaginas}…`);
+    for(let i=0;i<paginasListas.length;i++){
+      subiendo(`Preparando página ${i+1} de ${paginasListas.length}…`);
       const cv=document.createElement('canvas');
       cv.width=PW;cv.height=PH;
       const ctx=cv.getContext('2d');
-      await dibujarPaginaAlbum(ctx,grupo,PW,PH,redondeado);
+      await dibujarPaginaBuilder(ctx,paginasListas[i],PW,PH,c.redondeado);
       doc.addPage([PW,PH],'landscape');
       doc.addImage(cv.toDataURL('image/jpeg',0.9),'JPEG',0,0,PW,PH);
     }
     subidaLista();
-    doc.save(titulo.replace(/[^\w\-]+/g,'_')+'-album.pdf');
+    doc.save(c.titulo.replace(/[^\w\-]+/g,'_')+'-album.pdf');
     toast('Álbum descargado');
+    await borrarBorradorAlbumDB(c.tipo,c.id);
   }catch(err){
     subidaLista();
     console.error(err);
