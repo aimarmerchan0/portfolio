@@ -715,9 +715,8 @@ function abrirFoto(j,origenEl=null){
   coleccion.fotos.forEach((f,k)=>{
     const s=document.createElement('div');
     s.className='foto-slide';
-    const claseRevelado=(k===j&&!reducidoMovimiento)?'revelando':'';
     s.innerHTML=`<img class="eco" src="${miniDe(f)}" alt="">
-      <div class="marco"><img class="${claseRevelado}" src="${urlSegura(f.url)}" alt="${f.titulo||''}" crossorigin="anonymous"></div>`;
+      <div class="marco"><img src="${urlSegura(f.url)}" alt="${f.titulo||''}" crossorigin="anonymous"></div>`;
     carro.appendChild(s);
     const t=document.createElement('button');
     t.className='pulg';
@@ -963,26 +962,71 @@ async function exportarPolaroid(){
     const blob=await res.blob();
     const bitmap=await createImageBitmap(blob);
 
-    const margen=Math.round(bitmap.width*0.045);
-    const capInf=Math.round(bitmap.width*0.16);
+    /* 1. la tarjeta polaroid en sí: marco fino arriba/lados, tira ancha abajo para el texto */
+    const margen=Math.round(bitmap.width*0.035);
+    const capInf=Math.round(bitmap.width*0.17);
+    const radio=Math.round(bitmap.width*0.012);
+    const tarjeta=document.createElement('canvas');
+    tarjeta.width=bitmap.width+margen*2;
+    tarjeta.height=bitmap.height+margen*2+capInf;
+    const tctx=tarjeta.getContext('2d');
+    tctx.fillStyle='#FDFDFB';
+    trazarRectRedondeado(tctx,0,0,tarjeta.width,tarjeta.height,radio);
+    tctx.fill();
+    tctx.drawImage(bitmap,margen,margen);
+
+    const lugarTxt=f.lugarNombre||(coleccion.tipo==='lugar'||coleccion.tipo==='galeria'?coleccion.titulo:'');
+    const fechaTxt=f.fechaEfectiva?fechaMostrar(f.fechaEfectiva):'';
+    const tamNombre=Math.max(30,Math.round(bitmap.width*0.062));
+    const tamFecha=Math.max(16,Math.round(bitmap.width*0.03));
+    const centroCap=bitmap.height+margen+capInf/2;
+    tctx.textAlign='center';
+    tctx.fillStyle='#2b2b28';
+    tctx.font=`600 ${tamNombre}px "Caveat", cursive`;
+    tctx.textBaseline='alphabetic';
+    tctx.fillText(lugarTxt||PERFIL.nombre, tarjeta.width/2, centroCap+(fechaTxt?tamNombre*0.12:tamNombre*0.32));
+    if(fechaTxt){
+      tctx.fillStyle='#8A8A84';
+      tctx.font=`500 ${tamFecha}px 'Outfit',sans-serif`;
+      tctx.fillText(fechaTxt.toUpperCase(), tarjeta.width/2, centroCap+tamNombre*0.62);
+    }
+
+    /* 2. lienzo final: si la tarjeta queda demasiado alta o demasiado panorámica para
+       el feed de Instagram (fuera de 4:5 – 1.91:1), se amplía el fondo para que quepa
+       entera sin que la recorten — con la propia foto desenfocada como ambiente. */
+    const ratio=tarjeta.width/tarjeta.height;
+    const MIN_R=0.8, MAX_R=1.91;
+    let outW=tarjeta.width, outH=tarjeta.height;
+    if(ratio<MIN_R) outW=Math.round(tarjeta.height*MIN_R);
+    else if(ratio>MAX_R) outH=Math.round(tarjeta.width/MAX_R);
+
     const cv=document.createElement('canvas');
-    cv.width=bitmap.width+margen*2;
-    cv.height=bitmap.height+margen*2+capInf;
+    const ESCALA=Math.min(1,1600/Math.max(outW,outH))||1;
+    cv.width=Math.round(outW*ESCALA);cv.height=Math.round(outH*ESCALA);
     const ctx=cv.getContext('2d');
 
-    ctx.fillStyle='#FAFAF7';
-    ctx.fillRect(0,0,cv.width,cv.height);
-    ctx.drawImage(bitmap,margen,margen);
+    if(outW!==tarjeta.width||outH!==tarjeta.height){
+      /* fondo ambientado: la misma foto, a pantalla completa, borrosa y oscurecida */
+      const escalaFondo=Math.max(cv.width/bitmap.width,cv.height/bitmap.height)*1.15;
+      const fw=bitmap.width*escalaFondo, fh=bitmap.height*escalaFondo;
+      ctx.filter='blur(38px) saturate(1.2) brightness(.62)';
+      ctx.drawImage(bitmap,(cv.width-fw)/2,(cv.height-fh)/2,fw,fh);
+      ctx.filter='none';
+      ctx.fillStyle='rgba(20,20,18,.18)';
+      ctx.fillRect(0,0,cv.width,cv.height);
+    }else{
+      ctx.fillStyle='#EFEFEA';
+      ctx.fillRect(0,0,cv.width,cv.height);
+    }
 
-    const lugarTxt=f.lugarNombre||(coleccion.tipo==='lugar'?coleccion.titulo:(coleccion.tipo==='galeria'?coleccion.titulo:''));
-    const fechaTxt=f.fechaEfectiva?fechaMostrar(f.fechaEfectiva):'';
-    const linea=[lugarTxt,fechaTxt].filter(Boolean).join(' · ')||PERFIL.nombre;
-    const tamFuente=Math.max(26,Math.round(bitmap.width*0.052));
-    ctx.fillStyle='#2b2b28';
-    ctx.font=`600 ${tamFuente}px "Caveat", cursive`;
-    ctx.textAlign='center';
-    ctx.textBaseline='middle';
-    ctx.fillText(linea, cv.width/2, bitmap.height+margen+capInf/2);
+    /* 3. la tarjeta, centrada, con sombra suave */
+    const tx=(cv.width-tarjeta.width*ESCALA)/2, ty=(cv.height-tarjeta.height*ESCALA)/2;
+    ctx.save();
+    ctx.shadowColor='rgba(0,0,0,.45)';
+    ctx.shadowBlur=Math.round(cv.width*0.03);
+    ctx.shadowOffsetY=Math.round(cv.width*0.012);
+    ctx.drawImage(tarjeta,tx,ty,tarjeta.width*ESCALA,tarjeta.height*ESCALA);
+    ctx.restore();
 
     cv.toBlob(blob=>{
       if(!blob){toast('No se pudo generar la imagen');return;}
@@ -993,11 +1037,20 @@ async function exportarPolaroid(){
       document.body.appendChild(a);a.click();a.remove();
       setTimeout(()=>URL.revokeObjectURL(url),1500);
       toast('Polaroid descargada');
-    },'image/jpeg',0.92);
+    },'image/jpeg',0.95);
   }catch(err){
     console.error(err);
     toast('No se pudo generar la polaroid: '+err.message,4500);
   }
+}
+function trazarRectRedondeado(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
 }
 
 document.addEventListener('keydown',e=>{
