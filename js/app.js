@@ -81,10 +81,15 @@ function renderInicio(){
 
   const rec=$('recientes');rec.innerHTML='';
   if(!DATOS.galerias.length)rec.innerHTML='<p class="vacio">Aún no hay galerías.</p>';
-  DATOS.galerias.forEach(g=>{
+  const portadasUsadas=new Set();
+  const galeriasDestacadas=DATOS.galerias.filter(g=>g.destacada);
+  const galeriasResto=DATOS.galerias.filter(g=>!g.destacada);
+  [...galeriasDestacadas,...galeriasResto].slice(0,8).forEach(g=>{
     const d=document.createElement('div');
     d.className='tarjeta-mini';
-    d.innerHTML=`<div class="marco"><img loading="lazy" src="${portadaDeGaleria(g)}" alt="${g.nombre}"><b>${g.nombre}</b></div>`;
+    const portada=portadaDeGaleria(g);
+    portadasUsadas.add(portada);
+    d.innerHTML=`<div class="marco">${g.destacada?'<span class="estrella">★</span>':''}<img loading="lazy" src="${portada}" alt="${g.nombre}"><b>${g.nombre}</b></div>`;
     d.onclick=()=>abrirGaleria(g.id);
     rec.appendChild(d);
   });
@@ -93,16 +98,19 @@ function renderInicio(){
   if(!DATOS.lugares.length)il.innerHTML='<p class="vacio">Aún no hay lugares.</p>';
   DATOS.lugares.slice(0,3).forEach(l=>il.appendChild(filaLugar(l)));
 
-  renderCronologiaPreview();
+  renderCronologiaPreview(portadasUsadas);
 }
-function renderCronologiaPreview(){
+function renderCronologiaPreview(excluirUrls=new Set()){
   const cont=$('inicio-cronologia');cont.innerHTML='';
-  const todas=todasLasFotosOrdenadas().slice(0,10);
-  if(!todas.length){cont.innerHTML='<p class="vacio">Aún no hay fotos.</p>';return;}
-  todas.forEach((f,j)=>{
+  const todas=todasLasFotosOrdenadas().filter(f=>!excluirUrls.has(f.url));
+  const destacadas=todas.filter(f=>f.destacada);
+  const resto=todas.filter(f=>!f.destacada);
+  const finales=[...destacadas,...resto].slice(0,10);
+  if(!finales.length){cont.innerHTML='<p class="vacio">Aún no hay fotos.</p>';return;}
+  finales.forEach((f,j)=>{
     const d=document.createElement('button');
     d.className='foto-mini-cron';
-    d.innerHTML=`<img loading="lazy" src="${miniDe(f)}" alt="">
+    d.innerHTML=`${f.destacada?'<span class="estrella">★</span>':''}<img loading="lazy" src="${miniDe(f)}" alt="">
       <span>${f.lugarNombre||'Sin ubicación'}</span>`;
     d.onclick=e=>abrirFotoCronologia(todasLasFotosOrdenadas().findIndex(x=>x.id===f.id),e.currentTarget);
     cont.appendChild(d);
@@ -465,6 +473,7 @@ function hojaGaleria(gid){
       ${l.id?`<button class="opcion" onclick="cerrarHoja();abrirLugar('${l.id}')">Ver todo lo de ${l.nombre}</button>`:''}
       ${SESION?`
         <button class="opcion" onclick="cerrarHoja();formGaleria('${gid}')">Editar galería</button>
+        <button class="opcion" onclick="alternarDestacadaGaleria('${gid}')">${g.destacada?'★ Quitar de destacadas':'☆ Marcar como destacada'}</button>
         <button class="opcion peligro" onclick="eliminarGaleria('${gid}')">Eliminar galería</button>`:''}
     </div>
     <button class="cancelar" onclick="cerrarHoja()">Cancelar</button>`);
@@ -570,11 +579,13 @@ const carro=$('foto-carro'),tira=$('tira'),pFotoEl=$('p-foto');
 function abrirFoto(j,origenEl=null){
   fotoIdx=j;
   carro.innerHTML='';tira.innerHTML='';
+  const reducidoMovimiento=matchMedia('(prefers-reduced-motion:reduce)').matches;
   coleccion.fotos.forEach((f,k)=>{
     const s=document.createElement('div');
     s.className='foto-slide';
+    const claseRevelado=(k===j&&!reducidoMovimiento)?'revelando':'';
     s.innerHTML=`<img class="eco" src="${miniDe(f)}" alt="">
-      <div class="marco"><img src="${urlSegura(f.url)}" alt="${f.titulo||''}"></div>`;
+      <div class="marco"><img class="${claseRevelado}" src="${urlSegura(f.url)}" alt="${f.titulo||''}"></div>`;
     carro.appendChild(s);
     const t=document.createElement('button');
     t.className='pulg';
@@ -587,7 +598,7 @@ function abrirFoto(j,origenEl=null){
   irAFoto(j,true);
 
   /* apertura suave: escala sutil + fundido, natural como iOS */
-  const reducido=matchMedia('(prefers-reduced-motion:reduce)').matches;
+  const reducido=reducidoMovimiento;
   if(!reducido){
     pFotoEl.classList.add('suave-pre');
     pFotoEl.classList.add('abierta');
@@ -756,14 +767,75 @@ function abrirHojaInfo(){
       ${ubicacion?`<div class="dato">Ubicación <span>${ubicacion}</span></div>`:''}
       ${f.exif?`<div class="dato">Ajustes <span>${f.exif}</span></div>`:''}
       ${estadoOriginal?`<div class="dato">Original (antes) <span>${estadoOriginal}</span></div>`:''}
+      ${!fotoRota?`<button class="opcion" onclick="exportarPolaroid()">📷 Descargar como Polaroid</button>`:''}
       ${SESION?`
         <button class="opcion" onclick="cerrarHoja();formFoto('${f.id}')">Editar título / fecha / EXIF / lugar</button>
+        <button class="opcion" onclick="alternarDestacadaFoto('${f.id}')">${f.destacada?'★ Quitar de destacadas':'☆ Marcar como destacada'}</button>
         <button class="opcion" onclick="cerrarHoja();subirOriginal('${f.id}')">Subir foto original (antes)</button>
         ${f.galeria_id?`<button class="opcion" onclick="cerrarHoja();usarComoPortada('${f.id}')">Usar como portada de la galería</button>`:''}
         <button class="opcion peligro" onclick="eliminarFoto('${f.id}')">Eliminar foto</button>`:''}
     </div>
     <button class="cancelar" onclick="cerrarHoja()">Cerrar</button>`);
 }
+/* ═══ POLAROID exportable ═══ */
+let _fuentePolaroidCargada=false;
+async function cargarFuentePolaroid(){
+  if(_fuentePolaroidCargada)return;
+  const link=document.createElement('link');
+  link.rel='stylesheet';
+  link.href='https://fonts.googleapis.com/css2?family=Caveat:wght@600&display=swap';
+  document.head.appendChild(link);
+  try{ await document.fonts.load('600 48px "Caveat"'); }catch(e){}
+  _fuentePolaroidCargada=true;
+}
+async function exportarPolaroid(){
+  const f=coleccion.fotos[fotoIdx];
+  if(esFormatoNoVisible(f.url)){toast('Esta foto no se puede exportar (formato no compatible)');return;}
+  toast('Generando polaroid…');
+  try{
+    await cargarFuentePolaroid();
+    const res=await fetch(f.url);
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const blob=await res.blob();
+    const bitmap=await createImageBitmap(blob);
+
+    const margen=Math.round(bitmap.width*0.045);
+    const capInf=Math.round(bitmap.width*0.16);
+    const cv=document.createElement('canvas');
+    cv.width=bitmap.width+margen*2;
+    cv.height=bitmap.height+margen*2+capInf;
+    const ctx=cv.getContext('2d');
+
+    ctx.fillStyle='#FAFAF7';
+    ctx.fillRect(0,0,cv.width,cv.height);
+    ctx.drawImage(bitmap,margen,margen);
+
+    const lugarTxt=f.lugarNombre||(coleccion.tipo==='lugar'?coleccion.titulo:(coleccion.tipo==='galeria'?coleccion.titulo:''));
+    const fechaTxt=f.fechaEfectiva?fechaMostrar(f.fechaEfectiva):'';
+    const linea=[lugarTxt,fechaTxt].filter(Boolean).join(' · ')||PERFIL.nombre;
+    const tamFuente=Math.max(26,Math.round(bitmap.width*0.052));
+    ctx.fillStyle='#2b2b28';
+    ctx.font=`600 ${tamFuente}px "Caveat", cursive`;
+    ctx.textAlign='center';
+    ctx.textBaseline='middle';
+    ctx.fillText(linea, cv.width/2, bitmap.height+margen+capInf/2);
+
+    cv.toBlob(blob=>{
+      if(!blob){toast('No se pudo generar la imagen');return;}
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');
+      a.href=url;
+      a.download=(f.titulo||'foto').replace(/\.\w+$/,'')+'-polaroid.jpg';
+      document.body.appendChild(a);a.click();a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),1500);
+      toast('Polaroid descargada');
+    },'image/jpeg',0.92);
+  }catch(err){
+    console.error(err);
+    toast('No se pudo generar la polaroid: '+err.message,4500);
+  }
+}
+
 document.addEventListener('keydown',e=>{
   if(!$('p-foto').classList.contains('abierta'))return;
   if(e.key==='ArrowRight'&&fotoIdx<slides.length-1)irAFoto(fotoIdx+1);
