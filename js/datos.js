@@ -115,6 +115,47 @@ function toastAdmin(m, duracion = 4200) {
   if (!SESION) { console.warn('[solo admin] ' + m); return; }
   toast(m, duracion);
 }
+/* ─── EXIF real: se lee del propio archivo al subirlo, sin teclear nada ─── */
+let _exifCargando = null;
+function cargarExifJs() {
+  if (window.EXIF) return Promise.resolve();
+  if (_exifCargando) return _exifCargando;
+  _exifCargando = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/exif-js@2.3.0/exif.js';
+    s.crossOrigin = 'anonymous';
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error('no se pudo cargar el lector de EXIF'));
+    document.body.appendChild(s);
+  });
+  return _exifCargando;
+}
+function leerExifArchivo(file) {
+  return new Promise(resolve => {
+    if (typeof EXIF === 'undefined') { resolve(null); return; }
+    try {
+      EXIF.getData(file, function () {
+        const fn = EXIF.getTag(this, 'FNumber');
+        const et = EXIF.getTag(this, 'ExposureTime');
+        const iso = EXIF.getTag(this, 'ISOSpeedRatings');
+        const fl = EXIF.getTag(this, 'FocalLength');
+        const fechaExif = EXIF.getTag(this, 'DateTimeOriginal') || EXIF.getTag(this, 'DateTime');
+        const partes = [];
+        if (fn) partes.push('f/' + (Math.round(fn * 10) / 10));
+        if (et) partes.push(et < 1 ? ('1/' + Math.round(1 / et)) : (et + 's'));
+        if (iso) partes.push('ISO ' + iso);
+        if (fl) partes.push(Math.round(fl) + 'mm');
+        let fechaISO = null;
+        if (fechaExif) {
+          const m = String(fechaExif).match(/^(\d{4}):(\d{2}):(\d{2})/);
+          if (m) fechaISO = `${m[1]}-${m[2]}-${m[3]}`;
+        }
+        resolve({ exif: partes.join(' · ') || null, fecha: fechaISO });
+      });
+    } catch (e) { console.warn('EXIF no legible', e); resolve(null); }
+  });
+}
+
 const lugarDe = id => DATOS.lugares.find(l => l.id === id);
 const galeriaDe = id => DATOS.galerias.find(g => g.id === id);
 function fechaEfectivaFoto(f){

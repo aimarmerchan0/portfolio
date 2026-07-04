@@ -213,6 +213,18 @@ function iniciarMapa(){
     fallbackMapa('La librería del mapa no ha podido cargarse ('+err.message+'). Revisa tu conexión y recarga.');
   });
 }
+/* lugares con al menos una foto fechada, ordenados por su primera visita —
+   se usa tanto para la línea de ruta como para el recorrido cinemático */
+function lugaresOrdenadosPorFecha(){
+  return DATOS.lugares.map(l=>{
+    if(l.lat==null||l.lng==null)return null;
+    const fotos=fotosDeLugar(l.id).filter(f=>f.fechaEfectiva);
+    if(!fotos.length)return null;
+    const fechaMin=fotos.reduce((min,f)=>f.fechaEfectiva<min?f.fechaEfectiva:min,fotos[0].fechaEfectiva);
+    return {...l,fechaMin,fotos};
+  }).filter(Boolean).sort((a,b)=>a.fechaMin<b.fechaMin?-1:(a.fechaMin>b.fechaMin?1:0));
+}
+
 function iniciarMapaReal(){
   const cont=$('mapa-zona');
   const r=cont.getBoundingClientRect();
@@ -270,6 +282,52 @@ function alternarVistaMapa(){
   }
   $('btn-vista-mapa').textContent=vistaMapa==='terreno'?'Satélite':'Terreno';
 }
+
+/* ═══ recorrido cinemático: la cámara vuela de lugar en lugar en orden cronológico ═══ */
+let reproduciendoViaje=false;
+async function reproducirViaje(){
+  if(!mapa||reproduciendoViaje)return;
+  const ruta=lugaresOrdenadosPorFecha();
+  if(ruta.length<2){toast('Necesitas al menos 2 lugares con fecha para reproducir el viaje',4000);return;}
+  reproduciendoViaje=true;
+  $('btn-viaje').style.display='none';
+  $('btn-detener-viaje').style.display='inline-flex';
+  for(const l of ruta){
+    if(!reproduciendoViaje)break;
+    await volarAlugar(l);
+    if(!reproduciendoViaje)break;
+    await mostrarTarjetaViaje(l);
+    await esperar(2300);
+    if(!reproduciendoViaje)break;
+    ocultarTarjetaViaje();
+    await esperar(280);
+  }
+  detenerViaje();
+}
+function volarAlugar(l){
+  return new Promise(resolve=>{
+    mapa.flyTo([l.lat,l.lng],13,{duration:1.5});
+    setTimeout(resolve,1550);
+  });
+}
+function mostrarTarjetaViaje(l){
+  return new Promise(resolve=>{
+    $('tarjeta-viaje-img').src=miniDe(l.fotos[0]);
+    $('tarjeta-viaje-nombre').textContent=l.nombre;
+    $('tarjeta-viaje-fecha').textContent=fechaMostrar(l.fechaMin);
+    $('tarjeta-viaje').classList.add('visible');
+    setTimeout(resolve,400);
+  });
+}
+function ocultarTarjetaViaje(){
+  $('tarjeta-viaje').classList.remove('visible');
+}
+function detenerViaje(){
+  reproduciendoViaje=false;
+  $('btn-viaje').style.display='';
+  $('btn-detener-viaje').style.display='none';
+  ocultarTarjetaViaje();
+}
 function renderMarcadores(encuadrar=false){
   if(!mapa)return;
   try{
@@ -290,14 +348,28 @@ function renderMarcadores(encuadrar=false){
       m.on('click',()=>seleccionarLugar(l.id,true));
       limites.push([l.lat,l.lng]);
     });
+    renderRutaMapa();
     if(encuadrar&&limites.length)mapa.fitBounds(limites,{padding:[60,60],maxZoom:8});
   }catch(err){
     console.error(err);
     toast('Error al pintar los marcadores: '+err.message,4500);
   }
 }
+let capaRuta=null;
+function renderRutaMapa(){
+  if(!mapa)return;
+  if(capaRuta){mapa.removeLayer(capaRuta);capaRuta=null;}
+  const ruta=lugaresOrdenadosPorFecha();
+  if(ruta.length<2)return;
+  capaRuta=L.polyline(ruta.map(l=>[l.lat,l.lng]),{
+    color:'#141412',weight:2,opacity:.45,dashArray:'1,9',lineCap:'round',
+  }).addTo(mapa);
+  capaRuta.bringToBack();
+}
 function renderMapaCartas(){
   try{
+    const btnV=$('btn-viaje');
+    if(btnV&&!reproduciendoViaje)btnV.style.display=lugaresOrdenadosPorFecha().length>=2?'':'none';
     const cont=$('mapa-cartas');cont.innerHTML='';
     if(!DATOS.lugares.length){
       cont.innerHTML=`<div class="carta-lugar" style="justify-content:center;text-align:center">
@@ -359,6 +431,62 @@ function abrirLugar(lid){
     fotos,mostrarOrigen:true,
   });
 }
+/* ═══ URLs directas: se puede compartir el enlace de una galería, lugar o foto ═══
+   Se usa el hash (#/...) porque no requiere ninguna configuración en Vercel:
+   el navegador nunca envía esa parte al servidor, siempre se sirve la misma página. */
+function hashDeColeccion(c){
+  if(!c)return '';
+  if(c.tipo==='galeria')return 'galeria/'+c.id;
+  if(c.tipo==='lugar')return 'lugar/'+c.id;
+  return '';
+}
+function actualizarURL(hash){
+  const nueva=hash?('#'+hash):(location.pathname+location.search);
+  history.replaceState(null,'',nueva);
+}
+function compartirEnlace(hash,titulo){
+  cerrarHoja();
+  const url=location.origin+location.pathname+'#'+hash;
+  if(navigator.share){
+    navigator.share({title:titulo,url}).catch(()=>{});
+  }else if(navigator.clipboard){
+    navigator.clipboard.writeText(url).then(()=>toast('Enlace copiado')).catch(()=>toast('Compartir no está disponible en este navegador'));
+  }else{
+    toast('Compartir no está disponible en este navegador');
+  }
+}
+/* al cargar la app, si la URL trae un enlace directo, abre eso en vez de quedarse en Inicio */
+function resolverHashInicial(){
+  const partes=(location.hash||'').replace(/^#\/?/,'').split('/').filter(Boolean);
+  if(!partes.length)return;
+  try{
+    if(partes[0]==='galeria'&&partes[1]&&galeriaDe(partes[1])){
+      abrirGaleria(partes[1]);
+      if(partes[2]==='foto'&&partes[3]){
+        const idx=coleccion.fotos.findIndex(f=>f.id===partes[3]);
+        if(idx>=0)abrirFoto(idx);
+      }
+    }else if(partes[0]==='lugar'&&partes[1]&&lugarDe(partes[1])){
+      abrirLugar(partes[1]);
+      if(partes[2]==='foto'&&partes[3]){
+        const idx=coleccion.fotos.findIndex(f=>f.id===partes[3]);
+        if(idx>=0)abrirFoto(idx);
+      }
+    }else if(partes[0]==='foto'&&partes[1]){
+      const f=DATOS.fotos.find(x=>x.id===partes[1]);
+      if(!f)return;
+      if(f.galeria_id&&galeriaDe(f.galeria_id))abrirGaleria(f.galeria_id);
+      else{
+        const lid=lugarEfectivo(f);
+        if(lid&&lugarDe(lid))abrirLugar(lid);
+        else return;
+      }
+      const idx=coleccion.fotos.findIndex(x=>x.id===f.id);
+      if(idx>=0)abrirFoto(idx);
+    }
+  }catch(err){console.error('No se pudo abrir el enlace directo',err);}
+}
+
 function abrirColeccion(c){
   const mismaColeccion=coleccion&&coleccion.tipo===c.tipo&&coleccion.id===c.id;
   coleccion=c;
@@ -379,6 +507,7 @@ function abrirColeccion(c){
   $('col-topbar').classList.remove('solida');
   $('p-colec').classList.add('abierta');
   document.body.classList.add('empujada');
+  actualizarURL(hashDeColeccion(c));
 }
 let modoReordenar=false,celdasColeccion=[];
 function alternarReordenar(){
@@ -456,6 +585,7 @@ function refrescarColeccion(){
 function volverDeColec(){
   $('p-colec').classList.remove('abierta');
   document.body.classList.remove('empujada');
+  actualizarURL('');
 }
 $('col-scroll').addEventListener('scroll',()=>{
   const y=$('col-scroll').scrollTop;
@@ -470,6 +600,7 @@ function hojaGaleria(gid){
     <div class="grupo">
       <div class="cab-hoja"><b>${g.nombre}</b><span>${n} fotos${l.nombre?' · '+l.nombre:''}${g.anio?' · '+g.anio:''}</span></div>
       <button class="opcion" onclick="cerrarHoja();abrirGaleria('${gid}')">Abrir galería</button>
+      <button class="opcion" onclick="compartirEnlace('galeria/${gid}','${g.nombre.replace(/'/g,"\\'")}')">Compartir enlace</button>
       ${l.id?`<button class="opcion" onclick="cerrarHoja();abrirLugar('${l.id}')">Ver todo lo de ${l.nombre}</button>`:''}
       ${SESION?`
         <button class="opcion" onclick="cerrarHoja();formGaleria('${gid}')">Editar galería</button>
@@ -489,6 +620,7 @@ function hojaLugar(lid){
     <div class="grupo">
       <div class="cab-hoja"><b>${l.nombre}</b><span>${l.region||''} · ${n} fotos · ${(+l.lat).toFixed(4)}, ${(+l.lng).toFixed(4)}</span></div>
       <button class="opcion" onclick="cerrarHoja();abrirLugar('${lid}')">Ver las ${n} fotos</button>
+      <button class="opcion" onclick="compartirEnlace('lugar/${lid}','${l.nombre.replace(/'/g,"\\'")}')">Compartir enlace</button>
       ${SESION?`
         <button class="opcion" onclick="cerrarHoja();subirFotosALugar('${lid}')">Añadir fotos a este lugar</button>
         <button class="opcion" onclick="cerrarHoja();formLugar('${lid}')">Editar lugar</button>
@@ -585,7 +717,7 @@ function abrirFoto(j,origenEl=null){
     s.className='foto-slide';
     const claseRevelado=(k===j&&!reducidoMovimiento)?'revelando':'';
     s.innerHTML=`<img class="eco" src="${miniDe(f)}" alt="">
-      <div class="marco"><img class="${claseRevelado}" src="${urlSegura(f.url)}" alt="${f.titulo||''}"></div>`;
+      <div class="marco"><img class="${claseRevelado}" src="${urlSegura(f.url)}" alt="${f.titulo||''}" crossorigin="anonymous"></div>`;
     carro.appendChild(s);
     const t=document.createElement('button');
     t.className='pulg';
@@ -611,6 +743,9 @@ function abrirFoto(j,origenEl=null){
     pFotoEl.classList.add('abierta');
   }
   document.body.classList.add('nivel2');
+  const f=coleccion.fotos[j];
+  const baseHash=hashDeColeccion(coleccion);
+  actualizarURL(baseHash?baseHash+'/foto/'+f.id:'foto/'+f.id);
 }
 function volverDeFoto(){
   quitarComparador();
@@ -625,6 +760,7 @@ function volverDeFoto(){
     pFotoEl.classList.remove('abierta');
     document.body.classList.remove('nivel2');
   }
+  actualizarURL(hashDeColeccion(coleccion));
 }
 function irAFoto(k,inmediato=false){
   fotoIdx=k;
@@ -640,6 +776,28 @@ function irAFoto(k,inmediato=false){
   const tieneOriginal=!!f.url_original&&!esFormatoNoVisible(f.url_original);
   $('btn-cmp').style.display=tieneOriginal?'':'none';
   $('sep-cmp').style.display=tieneOriginal?'':'none';
+  aplicarColorAmbiente(slides[k].querySelector('.marco > img'));
+}
+/* colores dominantes dinámicos: tiñe suavemente el fondo del visor con el
+   color medio de la foto activa, como hace Spotify con las portadas */
+function extraerColorDominante(imgEl,cb){
+  try{
+    const cv=document.createElement('canvas');
+    const w=16,h=16;
+    cv.width=w;cv.height=h;
+    const ctx=cv.getContext('2d');
+    ctx.drawImage(imgEl,0,0,w,h);
+    const data=ctx.getImageData(0,0,w,h).data;
+    let r=0,g=0,b=0,n=0;
+    for(let i=0;i<data.length;i+=4){r+=data[i];g+=data[i+1];b+=data[i+2];n++;}
+    cb(`rgb(${Math.round(r/n)},${Math.round(g/n)},${Math.round(b/n)})`);
+  }catch(e){ /* CORS u otro fallo: se ignora, simplemente no habrá tinte */ }
+}
+function aplicarColorAmbiente(imgEl){
+  if(!imgEl)return;
+  const ir=()=>extraerColorDominante(imgEl,color=>pFotoEl.style.setProperty('--color-ambiente',color));
+  if(imgEl.complete&&imgEl.naturalWidth)ir();
+  else imgEl.addEventListener('load',ir,{once:true});
 }
 let sx=null,sy=null;
 const zona=$('foto-zona');
@@ -743,9 +901,15 @@ function quitarComparador(){
   });
 }
 function compartirFoto(){
+  const url=location.origin+location.pathname+location.hash;
   const f=coleccion.fotos[fotoIdx];
-  if(navigator.share){navigator.share({title:f.titulo||PERFIL.nombre,url:f.url}).catch(()=>{});}
-  else{toast('Compartir no está disponible en este navegador');}
+  if(navigator.share){
+    navigator.share({title:f.titulo||PERFIL.nombre,url}).catch(()=>{});
+  }else if(navigator.clipboard){
+    navigator.clipboard.writeText(url).then(()=>toast('Enlace copiado')).catch(()=>toast('Compartir no está disponible en este navegador'));
+  }else{
+    toast('Compartir no está disponible en este navegador');
+  }
 }
 function abrirHojaInfo(){
   const f=coleccion.fotos[fotoIdx];
@@ -889,6 +1053,7 @@ function precargarMiniaturas(){
   });
   await Promise.race([Promise.all([datos,minimo]),esperar(6000)]);
   renderTodo();
+  resolverHashInicial();
   $('arranque').classList.add('disparo');
   setTimeout(()=>$('arranque').classList.add('fuera'),260);
   precargarMiniaturas();

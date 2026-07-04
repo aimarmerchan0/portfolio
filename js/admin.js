@@ -14,6 +14,7 @@ function pintarEstadoAdmin(){
   $('admin-estado').textContent=SESION?('Administrador · '+SESION.user.email):'Visitante';
   $('btn-admin').textContent=SESION?'Cerrar sesión':'Acceso administrador';
   if($('btn-miniaturas'))$('btn-miniaturas').style.display=SESION?'block':'none';
+  if($('btn-backup'))$('btn-backup').style.display=SESION?'block':'none';
   if(window.__diagActualizar)window.__diagActualizar(!!SESION);
   renderTodo();
   if(coleccion&&$('p-colec').classList.contains('abierta'))refrescarColeccion();
@@ -387,14 +388,17 @@ function subirFotosAGaleria(){
       if(!files.length)return;
       const gid=coleccion.id;
       subiendo(`Subiendo 0 de ${files.length}…`);
+      await cargarExifJs().catch(()=>{});
       const resultados=await subirVariosConMiniatura(files,gid,(hechos,total)=>subiendo(`Subiendo ${hechos} de ${total}…`));
       let creadas=0;
       for(let i=0;i<files.length;i++){
         const r=resultados[i];
         if(!r||!r.url)continue;
+        const exifInfo=await leerExifArchivo(files[i]);
         const ok=await dbInsert('fotos',{
           galeria_id:gid,titulo:files[i].name,url:r.url,miniatura:r.miniatura,
-          vertical:null,exif:'',orden:Date.now()+i,fecha:_fechaLoteActual||hoy,
+          vertical:null,exif:(exifInfo&&exifInfo.exif)||'',orden:Date.now()+i,
+          fecha:(exifInfo&&exifInfo.fecha)||_fechaLoteActual||hoy,
         });
         if(ok)creadas++;
       }
@@ -419,14 +423,17 @@ function subirFotosALugar(lugarId){
       }
       if(!files.length)return;
       subiendo(`Subiendo 0 de ${files.length}…`);
+      await cargarExifJs().catch(()=>{});
       const resultados=await subirVariosConMiniatura(files,'lugar-'+lugarId,(hechos,total)=>subiendo(`Subiendo ${hechos} de ${total}…`));
       let creadas=0;
       for(let i=0;i<files.length;i++){
         const r=resultados[i];
         if(!r||!r.url)continue;
+        const exifInfo=await leerExifArchivo(files[i]);
         const ok=await dbInsert('fotos',{
           galeria_id:null,lugar_id:lugarId,titulo:files[i].name,url:r.url,miniatura:r.miniatura,
-          vertical:null,exif:'',orden:Date.now()+i,fecha:_fechaLoteActual||hoy,
+          vertical:null,exif:(exifInfo&&exifInfo.exif)||'',orden:Date.now()+i,
+          fecha:(exifInfo&&exifInfo.fecha)||_fechaLoteActual||hoy,
         });
         if(ok)creadas++;
       }
@@ -541,6 +548,49 @@ async function generarMiniaturasFaltantes(){
   await cargarDatos();renderTodo();
   subidaLista();
   toast(`Miniaturas generadas: ${hechas}${fallidas?` — ${fallidas} fallaron`:''}`,5000);
+}
+
+/* ── destacados: controlan qué aparece primero en el dashboard ── */
+async function alternarDestacadaGaleria(gid){
+  if(!requiereAdmin())return;
+  const g=galeriaDe(gid);
+  const ok=await dbUpdate('galerias',gid,{destacada:!g.destacada});
+  if(!ok)return;
+  await cargarDatos();renderTodo();
+  toast(g.destacada?'Quitada de destacadas':'Marcada como destacada');
+  hojaGaleria(gid); /* refresca la ficha para ver el botón actualizado */
+}
+async function alternarDestacadaFoto(fid){
+  if(!requiereAdmin())return;
+  const f=DATOS.fotos.find(x=>x.id===fid);
+  const ok=await dbUpdate('fotos',fid,{destacada:!f.destacada});
+  if(!ok)return;
+  await cargarDatos();renderTodo();refrescarColeccion();
+  toast(f.destacada?'Quitada de destacadas':'Marcada como destacada');
+  abrirHojaInfo(); /* refresca la ficha para ver el botón actualizado */
+}
+
+/* ── copia de seguridad: descarga un JSON con todo el contenido (lugares, galerías, fotos) ──
+   Las imágenes en sí ya están seguras en Supabase Storage; esto respalda los
+   datos y relaciones (títulos, fechas, orden, qué va con qué). */
+function exportarCopiaSeguridad(){
+  if(!requiereAdmin())return;
+  const datos={
+    exportado: new Date().toISOString(),
+    lugares: DATOS.lugares,
+    galerias: DATOS.galerias,
+    fotos: DATOS.fotos,
+  };
+  const blob=new Blob([JSON.stringify(datos,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=`copia-seguridad-portafolio-${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+  toast('Copia de seguridad descargada');
 }
 
 /* restaurar sesión al abrir */
