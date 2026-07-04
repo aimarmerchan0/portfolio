@@ -292,12 +292,13 @@ async function reproducirViaje(){
   reproduciendoViaje=true;
   $('btn-viaje').style.display='none';
   $('btn-detener-viaje').style.display='inline-flex';
+  $('mapa-cartas').classList.add('oculta');
   for(const l of ruta){
     if(!reproduciendoViaje)break;
     await volarAlugar(l);
     if(!reproduciendoViaje)break;
     await mostrarTarjetaViaje(l);
-    await esperar(2300);
+    await esperar(1700);
     if(!reproduciendoViaje)break;
     ocultarTarjetaViaje();
     await esperar(280);
@@ -312,11 +313,32 @@ function volarAlugar(l){
 }
 function mostrarTarjetaViaje(l){
   return new Promise(resolve=>{
-    $('tarjeta-viaje-img').src=miniDe(l.fotos[0]);
     $('tarjeta-viaje-nombre').textContent=l.nombre;
     $('tarjeta-viaje-fecha').textContent=fechaMostrar(l.fechaMin);
+    const grid=$('tarjeta-viaje-grid');
+    grid.innerHTML='';
+    const MAX_VISIBLE=15;
+    const fotos=l.fotos.slice(0,MAX_VISIBLE);
+    const restantes=l.fotos.length-fotos.length;
+    const n=fotos.length+(restantes>0?1:0);
+    const paso=n>1?900/(n-1):0;
+    fotos.forEach((f,i)=>{
+      const img=document.createElement('img');
+      img.className='foto-viaje-item';
+      img.loading='eager';
+      img.src=miniDe(f);
+      img.style.animationDelay=Math.round(i*paso)+'ms';
+      grid.appendChild(img);
+    });
+    if(restantes>0){
+      const mas=document.createElement('div');
+      mas.className='foto-viaje-mas';
+      mas.textContent='+'+restantes;
+      mas.style.animationDelay=Math.round((n-1)*paso)+'ms';
+      grid.appendChild(mas);
+    }
     $('tarjeta-viaje').classList.add('visible');
-    setTimeout(resolve,400);
+    setTimeout(resolve,950);
   });
 }
 function ocultarTarjetaViaje(){
@@ -326,6 +348,7 @@ function detenerViaje(){
   reproduciendoViaje=false;
   $('btn-viaje').style.display='';
   $('btn-detener-viaje').style.display='none';
+  $('mapa-cartas').classList.remove('oculta');
   ocultarTarjetaViaje();
 }
 function renderMarcadores(encuadrar=false){
@@ -601,6 +624,7 @@ function hojaGaleria(gid){
       <div class="cab-hoja"><b>${g.nombre}</b><span>${n} fotos${l.nombre?' · '+l.nombre:''}${g.anio?' · '+g.anio:''}</span></div>
       <button class="opcion" onclick="cerrarHoja();abrirGaleria('${gid}')">Abrir galería</button>
       <button class="opcion" onclick="compartirEnlace('galeria/${gid}','${g.nombre.replace(/'/g,"\\'")}')">Compartir enlace</button>
+      ${n?`<button class="opcion" onclick="cerrarHoja();exportarAlbum('galeria','${gid}')">📖 Exportar álbum (PDF)</button>`:''}
       ${l.id?`<button class="opcion" onclick="cerrarHoja();abrirLugar('${l.id}')">Ver todo lo de ${l.nombre}</button>`:''}
       ${SESION?`
         <button class="opcion" onclick="cerrarHoja();formGaleria('${gid}')">Editar galería</button>
@@ -621,6 +645,7 @@ function hojaLugar(lid){
       <div class="cab-hoja"><b>${l.nombre}</b><span>${l.region||''} · ${n} fotos · ${(+l.lat).toFixed(4)}, ${(+l.lng).toFixed(4)}</span></div>
       <button class="opcion" onclick="cerrarHoja();abrirLugar('${lid}')">Ver las ${n} fotos</button>
       <button class="opcion" onclick="compartirEnlace('lugar/${lid}','${l.nombre.replace(/'/g,"\\'")}')">Compartir enlace</button>
+      ${n?`<button class="opcion" onclick="cerrarHoja();exportarAlbum('lugar','${lid}')">📖 Exportar álbum (PDF)</button>`:''}
       ${SESION?`
         <button class="opcion" onclick="cerrarHoja();subirFotosALugar('${lid}')">Añadir fotos a este lugar</button>
         <button class="opcion" onclick="cerrarHoja();formLugar('${lid}')">Editar lugar</button>
@@ -991,41 +1016,40 @@ async function exportarPolaroid(){
       tctx.fillText(fechaTxt.toUpperCase(), tarjeta.width/2, centroCap+tamNombre*0.62);
     }
 
-    /* 2. lienzo final: si la tarjeta queda demasiado alta o demasiado panorámica para
-       el feed de Instagram (fuera de 4:5 – 1.91:1), se amplía el fondo para que quepa
-       entera sin que la recorten — con la propia foto desenfocada como ambiente. */
-    const ratio=tarjeta.width/tarjeta.height;
-    const MIN_R=0.8, MAX_R=1.91;
-    let outW=tarjeta.width, outH=tarjeta.height;
-    if(ratio<MIN_R) outW=Math.round(tarjeta.height*MIN_R);
-    else if(ratio>MAX_R) outH=Math.round(tarjeta.width/MAX_R);
-
-    const cv=document.createElement('canvas');
-    const ESCALA=Math.min(1,1600/Math.max(outW,outH))||1;
-    cv.width=Math.round(outW*ESCALA);cv.height=Math.round(outH*ESCALA);
-    const ctx=cv.getContext('2d');
-
-    if(outW!==tarjeta.width||outH!==tarjeta.height){
-      /* fondo ambientado: la misma foto, a pantalla completa, borrosa y oscurecida */
-      const escalaFondo=Math.max(cv.width/bitmap.width,cv.height/bitmap.height)*1.15;
-      const fw=bitmap.width*escalaFondo, fh=bitmap.height*escalaFondo;
-      ctx.filter='blur(38px) saturate(1.2) brightness(.62)';
-      ctx.drawImage(bitmap,(cv.width-fw)/2,(cv.height-fh)/2,fw,fh);
-      ctx.filter='none';
-      ctx.fillStyle='rgba(20,20,18,.18)';
-      ctx.fillRect(0,0,cv.width,cv.height);
-    }else{
-      ctx.fillStyle='#EFEFEA';
-      ctx.fillRect(0,0,cv.width,cv.height);
+    /* 2. lienzo final: pantalla completa de un teléfono (9:16, como una Historia),
+       con la propia foto de fondo muy oscurecida para que la tarjeta blanca resalte
+       con fuerte contraste. La tarjeta se centra siempre, sea cual sea su proporción. */
+    const RATIO_PANTALLA=9/16;
+    let outW=1080, outH=Math.round(1080/RATIO_PANTALLA);
+    /* si la tarjeta ya es más "alta" que la pantalla del móvil, se respeta su alto y se
+       calcula el ancho de pantalla a partir de ahí, para no dejar tiras negras raras */
+    if(tarjeta.width/tarjeta.height>RATIO_PANTALLA){
+      outH=Math.round(tarjeta.height*1.55);
+      outW=Math.round(outH*RATIO_PANTALLA);
     }
 
-    /* 3. la tarjeta, centrada, con sombra suave */
-    const tx=(cv.width-tarjeta.width*ESCALA)/2, ty=(cv.height-tarjeta.height*ESCALA)/2;
+    const cv=document.createElement('canvas');
+    cv.width=outW;cv.height=outH;
+    const ctx=cv.getContext('2d');
+
+    /* fondo: la misma foto, borrosa y MUY oscurecida — contraste fuerte con la tarjeta blanca */
+    const escalaFondo=Math.max(cv.width/bitmap.width,cv.height/bitmap.height)*1.18;
+    const fw=bitmap.width*escalaFondo, fh=bitmap.height*escalaFondo;
+    ctx.filter='blur(50px) saturate(1.15) brightness(.32)';
+    ctx.drawImage(bitmap,(cv.width-fw)/2,(cv.height-fh)/2,fw,fh);
+    ctx.filter='none';
+    ctx.fillStyle='rgba(6,6,6,.42)';
+    ctx.fillRect(0,0,cv.width,cv.height);
+
+    /* 3. la tarjeta, escalada para ocupar la mayor parte de la pantalla sin tocar los bordes */
+    const escalaTarjeta=Math.min((cv.width*0.86)/tarjeta.width,(cv.height*0.86)/tarjeta.height);
+    const tw=tarjeta.width*escalaTarjeta, th=tarjeta.height*escalaTarjeta;
+    const tx=(cv.width-tw)/2, ty=(cv.height-th)/2;
     ctx.save();
-    ctx.shadowColor='rgba(0,0,0,.45)';
-    ctx.shadowBlur=Math.round(cv.width*0.03);
-    ctx.shadowOffsetY=Math.round(cv.width*0.012);
-    ctx.drawImage(tarjeta,tx,ty,tarjeta.width*ESCALA,tarjeta.height*ESCALA);
+    ctx.shadowColor='rgba(0,0,0,.55)';
+    ctx.shadowBlur=Math.round(cv.width*0.035);
+    ctx.shadowOffsetY=Math.round(cv.width*0.014);
+    ctx.drawImage(tarjeta,tx,ty,tw,th);
     ctx.restore();
 
     cv.toBlob(blob=>{
@@ -1041,6 +1065,84 @@ async function exportarPolaroid(){
   }catch(err){
     console.error(err);
     toast('No se pudo generar la polaroid: '+err.message,4500);
+  }
+}
+/* ═══ EXPORTAR ÁLBUM (PDF) — para dar, por ejemplo, el álbum completo de una boda ═══ */
+let _jsPDFCargando=null;
+function cargarJsPDF(){
+  if(window.jspdf)return Promise.resolve();
+  if(_jsPDFCargando)return _jsPDFCargando;
+  _jsPDFCargando=new Promise((resolve,reject)=>{
+    const s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js';
+    s.crossOrigin='anonymous';
+    s.onload=()=>resolve();
+    s.onerror=()=>reject(new Error('no se pudo cargar el generador de PDF'));
+    document.body.appendChild(s);
+  });
+  return _jsPDFCargando;
+}
+async function exportarAlbum(tipo,id){
+  const titulo=tipo==='galeria'?galeriaDe(id).nombre:lugarDe(id).nombre;
+  const fotos=(tipo==='galeria'?fotosDeGaleria(id):fotosDeLugar(id)).filter(f=>!esFormatoNoVisible(f.url));
+  if(!fotos.length){toast('No hay fotos que exportar');return;}
+  toast(`Generando álbum de ${fotos.length} foto${fotos.length!==1?'s':''}… puede tardar un poco`,4500);
+  try{
+    await cargarJsPDF();
+    const {jsPDF}=window.jspdf;
+    const PW=1200,PH=900;
+    const doc=new jsPDF({unit:'px',format:[PW,PH],orientation:'landscape'});
+
+    /* portada */
+    doc.setFillColor(20,20,18);
+    doc.rect(0,0,PW,PH,'F');
+    doc.setTextColor(250,250,247);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(46);
+    doc.text(titulo,PW/2,PH/2-6,{align:'center',maxWidth:PW-160});
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(15);
+    doc.setTextColor(190,190,184);
+    doc.text(PERFIL.nombre+' · '+fotos.length+' fotos',PW/2,PH/2+32,{align:'center'});
+
+    for(let i=0;i<fotos.length;i++){
+      const f=fotos[i];
+      subiendo(`Preparando página ${i+1} de ${fotos.length}…`);
+      try{
+        const res=await fetch(f.url);
+        if(!res.ok)continue;
+        const blob=await res.blob();
+        const bitmap=await createImageBitmap(blob);
+        const cv=document.createElement('canvas');
+        cv.width=bitmap.width;cv.height=bitmap.height;
+        cv.getContext('2d').drawImage(bitmap,0,0);
+        const dataUrl=cv.toDataURL('image/jpeg',0.87);
+
+        doc.addPage([PW,PH],'landscape');
+        doc.setFillColor(250,250,247);
+        doc.rect(0,0,PW,PH,'F');
+        const margen=64;
+        const maxW=PW-margen*2, maxH=PH-margen*2-36;
+        const escala=Math.min(maxW/bitmap.width,maxH/bitmap.height);
+        const w=bitmap.width*escala, h=bitmap.height*escala;
+        const x=(PW-w)/2, y=(PH-h)/2-8;
+        doc.addImage(dataUrl,'JPEG',x,y,w,h);
+        const pieTxt=[f.titulo,f.fechaEfectiva?fechaMostrar(f.fechaEfectiva):null].filter(Boolean).join(' · ');
+        if(pieTxt){
+          doc.setTextColor(140,140,134);
+          doc.setFontSize(11);
+          doc.setFont('helvetica','normal');
+          doc.text(pieTxt,PW/2,y+h+24,{align:'center'});
+        }
+      }catch(errFoto){ console.warn('Página omitida por error en una foto',errFoto); }
+    }
+    subidaLista();
+    doc.save(titulo.replace(/[^\w\-]+/g,'_')+'-album.pdf');
+    toast('Álbum descargado');
+  }catch(err){
+    subidaLista();
+    console.error(err);
+    toast('No se pudo generar el álbum: '+err.message,4500);
   }
 }
 function trazarRectRedondeado(ctx,x,y,w,h,r){
