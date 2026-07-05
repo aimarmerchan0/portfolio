@@ -423,7 +423,7 @@ function renderRutaMapa(){
   const ruta=lugaresOrdenadosPorFecha();
   if(ruta.length<2)return;
   capaRuta=L.polyline(ruta.map(l=>[l.lat,l.lng]),{
-    color:'#141412',weight:2,opacity:.45,dashArray:'1,9',lineCap:'round',
+    color:'#FAFAF8',weight:3,opacity:.85,dashArray:'1,10',lineCap:'round',
   }).addTo(mapa);
   capaRuta.bringToBack();
 }
