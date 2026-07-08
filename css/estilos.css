@@ -476,6 +476,11 @@ body.admin #fab-colec.visible{display:flex}
   transition:transform .2s var(--rebote);
 }
 .btn-sonido:active{transform:scale(.9)}
+/* selector de fotograma de portada */
+.zona-frame{padding:14px 18px 4px}
+#video-portada{width:100%;max-height:38vh;border-radius:14px;background:#000;object-fit:contain}
+#slider-frame{width:100%;accent-color:var(--tinta);height:30px}
+#tiempo-frame{color:var(--tinta);font-variant-numeric:tabular-nums}
 /* insignia de vídeo en rejillas y miniaturas */
 .insignia-video{
   position:absolute;top:6px;right:6px;z-index:3;
