@@ -397,10 +397,16 @@ function subirFotosNuevasAGaleria(){
     input.onchange=async()=>{
       const todos=[...input.files];input.value='';
       if(!todos.length)return;
-      const files=todos.filter(f=>!esFormatoNoVisible(f.name));
-      if(todos.length>files.length){
-        toast(`${todos.length-files.length} archivo(s) RAW omitido(s) — ningún navegador puede mostrarlos. Expórtalos a JPG primero.`,6500);
-      }
+      const LIMITE_VIDEO=50*1024*1024; /* límite de archivo del plan gratuito de Supabase */
+      const files=todos.filter(f=>{
+        if(esFormatoNoVisible(f.name))return false;
+        if(esVideo(f.name)&&f.size>LIMITE_VIDEO)return false;
+        return true;
+      });
+      const omitidosRaw=todos.filter(f=>esFormatoNoVisible(f.name)).length;
+      const omitidosGrandes=todos.filter(f=>esVideo(f.name)&&f.size>LIMITE_VIDEO).length;
+      if(omitidosRaw)toast(`${omitidosRaw} archivo(s) RAW omitido(s) — expórtalos a JPG primero.`,6000);
+      if(omitidosGrandes)toast(`${omitidosGrandes} vídeo(s) omitido(s) por superar 50MB — expórtalos en calidad media/1080p.`,6500);
       if(!files.length)return;
       const gid=coleccion.id;
       subiendo(`Subiendo 0 de ${files.length}…`);
@@ -410,7 +416,7 @@ function subirFotosNuevasAGaleria(){
       for(let i=0;i<files.length;i++){
         const r=resultados[i];
         if(!r||!r.url)continue;
-        const exifInfo=await leerExifArchivo(files[i]);
+        const exifInfo=esVideo(files[i].name)?{exif:(r.duracion?'Vídeo · '+duracionLegible(r.duracion):'Vídeo'),fecha:null}:await leerExifArchivo(files[i]);
         const ok=await dbInsert('fotos',{
           galeria_id:gid,titulo:files[i].name,url:r.url,miniatura:r.miniatura,
           vertical:null,exif:(exifInfo&&exifInfo.exif)||'',orden:Date.now()+i,
@@ -492,10 +498,16 @@ function subirFotosALugar(lugarId){
     input.onchange=async()=>{
       const todos=[...input.files];input.value='';
       if(!todos.length)return;
-      const files=todos.filter(f=>!esFormatoNoVisible(f.name));
-      if(todos.length>files.length){
-        toast(`${todos.length-files.length} archivo(s) RAW omitido(s) — ningún navegador puede mostrarlos. Expórtalos a JPG primero.`,6500);
-      }
+      const LIMITE_VIDEO=50*1024*1024; /* límite de archivo del plan gratuito de Supabase */
+      const files=todos.filter(f=>{
+        if(esFormatoNoVisible(f.name))return false;
+        if(esVideo(f.name)&&f.size>LIMITE_VIDEO)return false;
+        return true;
+      });
+      const omitidosRaw=todos.filter(f=>esFormatoNoVisible(f.name)).length;
+      const omitidosGrandes=todos.filter(f=>esVideo(f.name)&&f.size>LIMITE_VIDEO).length;
+      if(omitidosRaw)toast(`${omitidosRaw} archivo(s) RAW omitido(s) — expórtalos a JPG primero.`,6000);
+      if(omitidosGrandes)toast(`${omitidosGrandes} vídeo(s) omitido(s) por superar 50MB — expórtalos en calidad media/1080p.`,6500);
       if(!files.length)return;
       subiendo(`Subiendo 0 de ${files.length}…`);
       await cargarExifJs().catch(()=>{});
@@ -504,7 +516,7 @@ function subirFotosALugar(lugarId){
       for(let i=0;i<files.length;i++){
         const r=resultados[i];
         if(!r||!r.url)continue;
-        const exifInfo=await leerExifArchivo(files[i]);
+        const exifInfo=esVideo(files[i].name)?{exif:(r.duracion?'Vídeo · '+duracionLegible(r.duracion):'Vídeo'),fecha:null}:await leerExifArchivo(files[i]);
         const ok=await dbInsert('fotos',{
           galeria_id:null,lugar_id:lugarId,titulo:files[i].name,url:r.url,miniatura:r.miniatura,
           vertical:null,exif:(exifInfo&&exifInfo.exif)||'',orden:Date.now()+i,
@@ -536,30 +548,86 @@ async function moverFoto(fid,dir){
   await cargarDatos();
   refrescarColeccion();
 }
+let _lugarNuevoFoto=null,_lugarFotoTimer=null;
 function formFoto(fid){
   const f=DATOS.fotos.find(x=>x.id===fid);
-  const ops=DATOS.lugares.map(l=>`<option value="${l.id}" ${l.id===f.lugar_id?'selected':''}>${l.nombre}</option>`).join('');
+  const lugarActual=f.lugar_id?lugarDe(f.lugar_id):null;
+  _lugarNuevoFoto=null;
   hoja(`
     <div class="grupo">
       <div class="cab-hoja"><b>Editar foto</b><span>${f.titulo||''}</span></div>
       <div class="campo"><label>Título / archivo</label><input id="in-f-titulo" value="${f.titulo||''}"></div>
       <div class="campo"><label>Fecha</label><input id="in-f-fecha" type="date" value="${f.fecha||''}"></div>
       <div class="campo"><label>EXIF (opcional)</label><input id="in-f-exif" value="${f.exif||''}" placeholder="f/2.8 · 1/640 · ISO 100 · 35mm"></div>
-      <div class="campo"><label>Lugar propio (si es distinto al de la galería)</label>
-        <select id="in-f-lugar"><option value="">— El de la galería —</option>${ops}</select>
+      <div class="campo">
+        <label>Lugar propio (si es distinto al de la galería)</label>
+        <input id="in-f-lugar-buscar" placeholder="Busca uno existente, escribe una dirección, o déjalo vacío" autocomplete="off"
+          value="${lugarActual?lugarActual.nombre:''}"
+          oninput="buscarLugarFoto(this.value)" onfocus="buscarLugarFoto(this.value)">
+        <input type="hidden" id="in-f-lugar-id" value="${f.lugar_id||''}">
+        <div id="resultados-lugar-foto"></div>
       </div>
       <button class="principal" onclick="guardarFoto('${fid}')">Guardar cambios</button>
     </div>
     <button class="cancelar" onclick="cerrarHoja()">Cancelar</button>`);
 }
+function buscarLugarFoto(q){
+  clearTimeout(_lugarFotoTimer);
+  const texto=(q||'').trim().toLowerCase();
+  const cont=$('resultados-lugar-foto');
+  const locales=DATOS.lugares.filter(l=>!texto||l.nombre.toLowerCase().includes(texto)||(l.region||'').toLowerCase().includes(texto)).slice(0,6);
+  let html='';
+  if(locales.length){
+    html+='<div class="resultado-cab">Tus lugares</div>'+
+      locales.map(l=>`<button class="resultado-dir" onclick="elegirLugarFoto('${l.id}','${l.nombre.replace(/'/g,"\\'")}')"><b>${l.nombre}</b><span>${l.region||''}</span></button>`).join('');
+  }
+  if(texto&&!locales.length){
+    html+='<div class="resultado-dir cargando">Sin lugares que coincidan — sigue escribiendo para buscar una dirección</div>';
+  }
+  cont.innerHTML=html;
+  if(texto.length<3)return;
+  _lugarFotoTimer=setTimeout(async()=>{
+    const resultados=await buscarDireccion(texto);
+    const nuevos=resultados.filter(r=>!DATOS.lugares.some(l=>l.nombre.toLowerCase()===r.nombre.toLowerCase()));
+    if(!nuevos.length)return;
+    window.__nuevosLugarFoto=nuevos;
+    cont.innerHTML+='<div class="resultado-cab">Crear lugar nuevo</div>'+
+      nuevos.map((r,i)=>`<button class="resultado-dir" onclick="elegirLugarNuevoFoto(${i})"><b>${r.nombre}</b><span>${r.region}</span></button>`).join('');
+  },450);
+}
+function elegirLugarFoto(id,nombre){
+  $('in-f-lugar-buscar').value=nombre;
+  $('in-f-lugar-id').value=id;
+  _lugarNuevoFoto=null;
+  $('resultados-lugar-foto').innerHTML='';
+}
+function elegirLugarNuevoFoto(i){
+  const r=window.__nuevosLugarFoto[i];
+  $('in-f-lugar-buscar').value=r.nombre;
+  $('in-f-lugar-id').value='';
+  _lugarNuevoFoto=r;
+  $('resultados-lugar-foto').innerHTML='';
+}
 async function guardarFoto(fid){
   if(!requiereAdmin())return;
+  let lugarId=$('in-f-lugar-id').value||null;
+  if(!$('in-f-lugar-buscar').value.trim()){lugarId=null;_lugarNuevoFoto=null;}
+  if(!lugarId&&_lugarNuevoFoto){
+    const r=_lugarNuevoFoto;
+    const parecido=buscarLugarSimilar(r.nombre,r.lat,r.lng);
+    if(parecido)lugarId=parecido.id;
+    else{
+      const nuevo=await dbInsert('lugares',{nombre:r.nombre,region:r.region,lat:r.lat,lng:r.lng});
+      if(!nuevo)return;
+      lugarId=nuevo.id;
+    }
+  }
   cerrarHoja();subiendo('Guardando…');
   await dbUpdate('fotos',fid,{
     titulo:$('in-f-titulo').value.trim(),
     fecha:$('in-f-fecha').value||null,
     exif:$('in-f-exif').value.trim(),
-    lugar_id:$('in-f-lugar').value||null,
+    lugar_id:lugarId,
   });
   await cargarDatos();renderTodo();refrescarColeccion();subidaLista();
   toast('Foto actualizada');

@@ -416,16 +416,23 @@ function renderMarcadores(encuadrar=false){
     toast('Error al pintar los marcadores: '+err.message,4500);
   }
 }
-let capaRuta=null;
+let capaRuta=null,capaRutaSombra=null;
 function renderRutaMapa(){
   if(!mapa)return;
   if(capaRuta){mapa.removeLayer(capaRuta);capaRuta=null;}
+  if(capaRutaSombra){mapa.removeLayer(capaRutaSombra);capaRutaSombra=null;}
   const ruta=lugaresOrdenadosPorFecha();
   if(ruta.length<2)return;
-  capaRuta=L.polyline(ruta.map(l=>[l.lat,l.lng]),{
-    color:'#FAFAF8',weight:3,opacity:.85,dashArray:'1,10',lineCap:'round',
+  const puntos=ruta.map(l=>[l.lat,l.lng]);
+  /* halo oscuro debajo + puntos blancos encima: así se ven siempre, sea cual sea el fondo del mapa */
+  capaRutaSombra=L.polyline(puntos,{
+    color:'#000000',weight:8,opacity:.3,dashArray:'1,11',lineCap:'round',
   }).addTo(mapa);
-  capaRuta.bringToBack();
+  capaRuta=L.polyline(puntos,{
+    color:'#FFFFFF',weight:4,opacity:1,dashArray:'1,11',lineCap:'round',
+  }).addTo(mapa);
+  capaRutaSombra.bringToFront();
+  capaRuta.bringToFront();
 }
 function renderMapaCartas(){
   try{
@@ -617,7 +624,7 @@ function pintarGridColeccion(){
         const jGlobal=coleccion.fotos.indexOf(f);
         const cel=document.createElement('div');
         cel.className='celda';
-        cel.innerHTML=`<img loading="lazy" src="${miniDe(f)}" alt="${f.titulo||''}">`;
+        cel.innerHTML=`<img loading="lazy" src="${miniDe(f)}" alt="${f.titulo||''}">${insigniaVideo(f)}`;
         cel.onclick=e=>abrirFoto(jGlobal,e.currentTarget);
         subgrid.appendChild(cel);
         celdasColeccion[jGlobal]=cel;
@@ -645,7 +652,7 @@ function pintarGridColeccion(){
           const jGlobal=coleccion.fotos.indexOf(f);
           const cel=document.createElement('div');
           cel.className='celda';
-          cel.innerHTML=`<img loading="lazy" src="${miniDe(f)}" alt="${f.titulo||''}">`;
+          cel.innerHTML=`<img loading="lazy" src="${miniDe(f)}" alt="${f.titulo||''}">${insigniaVideo(f)}`;
           cel.onclick=e=>abrirFoto(jGlobal,e.currentTarget);
           subgrid.appendChild(cel);
           celdasColeccion[jGlobal]=cel;
@@ -663,7 +670,7 @@ function pintarGridColeccion(){
     const fecha=f.fechaEfectiva?fechaMostrar(f.fechaEfectiva):'';
     const etiqueta=coleccion.mostrarOrigen?[f.galeria,fecha].filter(Boolean).join(' · '):'';
     cel.innerHTML=`<img loading="lazy" src="${miniDe(f)}" alt="${f.titulo||''}">
-      ${etiqueta?`<span class="de">${etiqueta}</span>`:''}`;
+      ${insigniaVideo(f)}${etiqueta?`<span class="de">${etiqueta}</span>`:''}`;
     cel.onclick=e=>abrirFoto(j,e.currentTarget);
     grid.appendChild(cel);
     celdasColeccion[j]=cel;
@@ -782,7 +789,7 @@ function renderCronologia(){
     }
     const cel=document.createElement('button');
     cel.className='celda-cron';
-    cel.innerHTML=`<img loading="lazy" src="${miniDe(f)}" alt="${f.titulo||''}">`;
+    cel.innerHTML=`<img loading="lazy" src="${miniDe(f)}" alt="${f.titulo||''}">${insigniaVideo(f)}`;
     cel.onclick=e=>abrirFotoCronologia(j,e.currentTarget);
     subgrid.appendChild(cel);
     celdasCronologia[j]=cel;
@@ -814,6 +821,10 @@ function tituloMostrable(f){
   return l?l.nombre:'';
 }
 
+function insigniaVideo(f){
+  return esVideo(f.url)?'<span class="insignia-video">▶</span>':'';
+}
+
 /* ═══ VISOR ═══ */
 let fotoIdx=0,slides=[],pulgs=[],celdas=[],cmpActivo=false;
 const carro=$('foto-carro'),tira=$('tira'),pFotoEl=$('p-foto');
@@ -823,12 +834,17 @@ function abrirFoto(j,origenEl=null){
   coleccion.fotos.forEach((f,k)=>{
     const s=document.createElement('div');
     s.className='foto-slide';
-    s.innerHTML=`<img class="eco" src="${miniDe(f)}" alt="">
-      <div class="marco"><img src="${urlSegura(f.url)}" alt="${f.titulo||''}" crossorigin="anonymous"></div>`;
+    if(esVideo(f.url)){
+      s.innerHTML=`<img class="eco" src="${miniDe(f)}" alt="">
+        <div class="marco marco-video"><video src="${f.url}" poster="${f.miniatura||''}" controls playsinline preload="metadata"></video></div>`;
+    }else{
+      s.innerHTML=`<img class="eco" src="${miniDe(f)}" alt="">
+        <div class="marco"><img src="${urlSegura(f.url)}" alt="${f.titulo||''}" crossorigin="anonymous"></div>`;
+    }
     carro.appendChild(s);
     const t=document.createElement('button');
     t.className='pulg';
-    t.innerHTML=`<img loading="lazy" src="${miniDe(f)}" alt="">`;
+    t.innerHTML=`<img loading="lazy" src="${miniDe(f)}" alt="">${esVideo(f.url)?'<span class="insignia-video">▶</span>':''}`;
     t.onclick=()=>{quitarComparador();irAFoto(k);};
     tira.appendChild(t);
   });
@@ -845,6 +861,7 @@ function abrirFoto(j,origenEl=null){
 }
 function volverDeFoto(){
   quitarComparador();
+  carro.querySelectorAll('video').forEach(v=>v.pause());
   pFotoEl.classList.remove('abierta');
   document.body.classList.remove('nivel2');
   actualizarURL(hashDeColeccion(coleccion));
@@ -867,7 +884,10 @@ function irAFoto(k,inmediato=false){
   const tieneOriginal=!!f.url_original&&!esFormatoNoVisible(f.url_original);
   $('btn-cmp').style.display=tieneOriginal?'':'none';
   $('sep-cmp').style.display=tieneOriginal?'':'none';
-  aplicarColorAmbiente(slides[k].querySelector('.marco > img'));
+  /* pausar cualquier vídeo que quedara sonando en otra diapositiva */
+  carro.querySelectorAll('video').forEach(v=>{ if(!slides[k].contains(v))v.pause(); });
+  const imgActiva=slides[k].querySelector('.marco > img');
+  if(imgActiva)aplicarColorAmbiente(imgActiva);
 }
 /* colores dominantes dinámicos: tiñe suavemente el fondo del visor con el
    color medio de la foto activa, como hace Spotify con las portadas */
@@ -909,6 +929,7 @@ zona.addEventListener('touchstart',()=>{
   pulsoTimer=setTimeout(()=>{
     if(cmpActivo)return;
     const f=coleccion.fotos[fotoIdx];
+    if(esVideo(f.url))return; /* en un vídeo la pulsación larga no tiene sentido */
     const marco=slides[fotoIdx].querySelector('.marco');
     if(f.url_original){
       marco.insertAdjacentHTML('beforeend',`<img class="peek-antes" src="${f.url_original}" alt="">`);
@@ -1022,7 +1043,7 @@ function abrirHojaInfo(){
       ${ubicacion?`<div class="dato">Ubicación <span>${ubicacion}</span></div>`:''}
       ${f.exif?`<div class="dato">Ajustes <span>${f.exif}</span></div>`:''}
       ${estadoOriginal?`<div class="dato">Original (antes) <span>${estadoOriginal}</span></div>`:''}
-      ${!fotoRota?`<button class="opcion" onclick="exportarPolaroid()">📷 Descargar como Polaroid</button>`:''}
+      ${!fotoRota&&!esVideo(f.url)?`<button class="opcion" onclick="exportarPolaroid()">📷 Descargar como Polaroid</button>`:''}
       ${SESION?`
         <button class="opcion" onclick="cerrarHoja();formFoto('${f.id}')">Editar título / fecha / EXIF / lugar</button>
         <button class="opcion" onclick="alternarDestacadaFoto('${f.id}')">${f.destacada?'★ Quitar de destacadas':'☆ Marcar como destacada'}</button>
@@ -1045,6 +1066,7 @@ async function cargarFuentePolaroid(){
 }
 async function exportarPolaroid(){
   const f=coleccion.fotos[fotoIdx];
+  if(esVideo(f.url)){toast('La polaroid solo está disponible para fotos');return;}
   if(esFormatoNoVisible(f.url)){toast('Esta foto no se puede exportar (formato no compatible)');return;}
   toast('Generando polaroid…');
   try{
@@ -1218,7 +1240,7 @@ let _albumBuilder=null;
 
 async function abrirDisenadorAlbum(tipo,id){
   if(!requiereAdmin())return;
-  const fotos=(tipo==='galeria'?fotosDeGaleria(id):fotosDeLugar(id)).filter(f=>!esFormatoNoVisible(f.url));
+  const fotos=(tipo==='galeria'?fotosDeGaleria(id):fotosDeLugar(id)).filter(f=>!esFormatoNoVisible(f.url)&&!esVideo(f.url));
   if(!fotos.length){toast('No hay fotos que exportar');return;}
   const titulo=tipo==='galeria'?galeriaDe(id).nombre:lugarDe(id).nombre;
   toast('Cargando diseñador de álbum…');

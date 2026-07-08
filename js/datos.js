@@ -110,6 +110,18 @@ function urlSegura(u) {
   return (u && esFormatoNoVisible(u)) ? PLACEHOLDER_RAW : u;
 }
 
+/* ─── vídeos: formatos que el navegador SÍ puede reproducir en un <video> ─── */
+const EXTENSIONES_VIDEO = ['mp4','mov','m4v','webm'];
+function esVideo(nombreOUrl) {
+  const ext = (nombreOUrl || '').split('?')[0].split('.').pop().toLowerCase();
+  return EXTENSIONES_VIDEO.includes(ext);
+}
+function duracionLegible(seg) {
+  if (!seg || !isFinite(seg)) return '';
+  const m = Math.floor(seg / 60), s = Math.round(seg % 60);
+  return m + ':' + String(s).padStart(2, '0');
+}
+
 /* ─── toast que SOLO se muestra si hay sesión de administrador — nunca a un visitante ─── */
 function toastAdmin(m, duracion = 4200) {
   if (!SESION) { console.warn('[solo admin] ' + m); return; }
@@ -206,7 +218,14 @@ function fotosDeLugar(lid) {
       return 0;
     });
 }
-const miniDe = f => urlSegura(f.miniatura || f.url);
+const PLACEHOLDER_VIDEO = 'data:image/svg+xml,' + encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"><rect width="300" height="300" fill="#141412"/><polygon points="120,95 120,205 215,150" fill="#FAFAF8"/></svg>`
+);
+const miniDe = f => {
+  const m = f.miniatura || f.url;
+  if (esVideo(m)) return PLACEHOLDER_VIDEO; /* vídeo sin póster: icono de reproducción */
+  return urlSegura(m);
+};
 const portadaDeGaleria = g => urlSegura(g.portada_url || (fotosDeGaleria(g.id)[0] || {}).url || "");
 
 /* ─── todas las fotos, de cualquier galería o lugar, en orden cronológico (más recientes primero) ─── */
@@ -347,7 +366,51 @@ async function _subirUnArchivo(archivo, carpeta, sufijo) {
 /* sube la foto grande (comprimida) Y una miniatura ligera — la miniatura es la clave
    de la velocidad: sin ella, cada rejilla de fotos tendría que cargar la imagen
    completa solo para mostrarla del tamaño de un sello. */
+/* ─── miniatura de un VÍDEO: se captura un fotograma real del propio vídeo ─── */
+function generarMiniaturaVideo(file, maxDim = 480, calidad = 0.72) {
+  return new Promise(resolve => {
+    const video = document.createElement('video');
+    const url = URL.createObjectURL(file);
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = 'metadata';
+    let resuelto = false;
+    const terminar = res => { if (resuelto) return; resuelto = true; URL.revokeObjectURL(url); resolve(res); };
+    video.onloadedmetadata = () => {
+      /* saltamos un poco dentro del vídeo para evitar el típico primer fotograma negro */
+      video.currentTime = Math.min(0.6, (video.duration || 1) * 0.15);
+    };
+    video.onseeked = () => {
+      try {
+        let w = video.videoWidth, h = video.videoHeight;
+        if (!w || !h) { terminar(null); return; }
+        const escala = Math.min(1, maxDim / Math.max(w, h));
+        const cv = document.createElement('canvas');
+        cv.width = Math.round(w * escala); cv.height = Math.round(h * escala);
+        cv.getContext('2d').drawImage(video, 0, 0, cv.width, cv.height);
+        cv.toBlob(blob => {
+          terminar(blob ? {
+            poster: new File([blob], 'poster_' + file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' }),
+            duracion: video.duration || 0,
+          } : null);
+        }, 'image/jpeg', calidad);
+      } catch (e) { console.warn('miniatura de vídeo fallida', e); terminar(null); }
+    };
+    video.onerror = () => terminar(null);
+    setTimeout(() => terminar(null), 8000); /* red de seguridad si el vídeo no carga */
+    video.src = url;
+  });
+}
 async function subirArchivoConMiniatura(file, carpeta) {
+  if (esVideo(file.name)) {
+    /* los vídeos no se comprimen en el navegador: se suben tal cual, con su póster */
+    const info = await generarMiniaturaVideo(file);
+    const [url, miniatura] = await Promise.all([
+      _subirUnArchivo(file, carpeta, ''),
+      info && info.poster ? _subirUnArchivo(info.poster, carpeta, '_mini') : Promise.resolve(null),
+    ]);
+    return { url, miniatura, duracion: info ? info.duracion : 0 };
+  }
   const [grande, mini] = await Promise.all([comprimirImagen(file), generarMiniatura(file)]);
   const [url, miniatura] = await Promise.all([
     _subirUnArchivo(grande, carpeta, ''),
