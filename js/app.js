@@ -836,12 +836,22 @@ function abrirFoto(j,origenEl=null){
     s.className='foto-slide';
     if(esVideo(f.url)){
       s.innerHTML=`<img class="eco" src="${miniDe(f)}" alt="">
-        <div class="marco marco-video"><video src="${f.url}" poster="${f.miniatura||''}" controls playsinline preload="metadata"></video></div>`;
+        <div class="marco marco-video">
+          <video src="${f.url}" poster="${f.miniatura||''}" loop muted playsinline preload="metadata"></video>
+          <button class="btn-sonido" aria-label="Activar sonido">🔇</button>
+        </div>`;
     }else{
       s.innerHTML=`<img class="eco" src="${miniDe(f)}" alt="">
         <div class="marco"><img src="${urlSegura(f.url)}" alt="${f.titulo||''}" crossorigin="anonymous"></div>`;
     }
     carro.appendChild(s);
+    if(esVideo(f.url)){
+      const v=s.querySelector('video');
+      const btnSonido=s.querySelector('.btn-sonido');
+      btnSonido.onclick=e=>{e.stopPropagation();alternarSonidoVideo(btnSonido,v);};
+      /* tocar el propio vídeo lo pausa o lo reanuda */
+      v.onclick=()=>{ v.paused?v.play().catch(()=>{}):v.pause(); };
+    }
     const t=document.createElement('button');
     t.className='pulg';
     t.innerHTML=`<img loading="lazy" src="${miniDe(f)}" alt="">${esVideo(f.url)?'<span class="insignia-video">▶</span>':''}`;
@@ -884,10 +894,34 @@ function irAFoto(k,inmediato=false){
   const tieneOriginal=!!f.url_original&&!esFormatoNoVisible(f.url_original);
   $('btn-cmp').style.display=tieneOriginal?'':'none';
   $('sep-cmp').style.display=tieneOriginal?'':'none';
-  /* pausar cualquier vídeo que quedara sonando en otra diapositiva */
-  carro.querySelectorAll('video').forEach(v=>{ if(!slides[k].contains(v))v.pause(); });
+  gestionarVideos(k);
   const imgActiva=slides[k].querySelector('.marco > img');
   if(imgActiva)aplicarColorAmbiente(imgActiva);
+}
+/* el vídeo de la diapositiva activa se reproduce solo, en bucle y silenciado
+   (iOS solo permite autoreproducir si está silenciado); los demás se paran */
+function gestionarVideos(k){
+  slides.forEach((s,i)=>{
+    const v=s.querySelector('video');
+    if(!v)return;
+    if(i===k){
+      v.currentTime=0;
+      const p=v.play();
+      if(p&&p.catch)p.catch(()=>{}); /* si el navegador lo bloquea, no pasa nada */
+    }else{
+      v.pause();
+      v.currentTime=0;
+    }
+  });
+}
+/* activar/silenciar el sonido del vídeo activo */
+function alternarSonidoVideo(btn,video){
+  video.muted=!video.muted;
+  btn.textContent=video.muted?'🔇':'🔊';
+  if(!video.muted){
+    const p=video.play();
+    if(p&&p.catch)p.catch(()=>{});
+  }
 }
 /* colores dominantes dinámicos: tiñe suavemente el fondo del visor con el
    color medio de la foto activa, como hace Spotify con las portadas */
@@ -944,7 +978,8 @@ zona.addEventListener('touchstart',()=>{
   if(cmpActivo)return; /* jamás interferir con el comparador */
   slides.forEach(s=>{
     s.querySelectorAll('.peek-antes').forEach(x=>x.remove());
-    s.querySelector('.marco > img').classList.remove('filtro-raw');
+    const img=s.querySelector('.marco > img'); /* las diapositivas de vídeo no tienen img */
+    if(img)img.classList.remove('filtro-raw');
   });
   $('peek').classList.remove('visible');
 },{passive:true}));

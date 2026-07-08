@@ -354,8 +354,11 @@ function cambiarPortada(gid){
 async function usarComoPortada(fid){
   if(!requiereAdmin())return;
   const f=DATOS.fotos.find(x=>x.id===fid);
+  /* una portada debe ser siempre una imagen: en un vídeo usamos su fotograma */
+  const urlPortada=esVideo(f.url)?f.miniatura:f.url;
+  if(!urlPortada){toast('Este vídeo aún no tiene fotograma de portada — elígelo primero',5000);return;}
   subiendo('Actualizando portada…');
-  await dbUpdate('galerias',f.galeria_id,{portada_url:f.url});
+  await dbUpdate('galerias',f.galeria_id,{portada_url:urlPortada});
   await cargarDatos();renderTodo();subidaLista();
   toast('Portada actualizada');
 }
@@ -551,14 +554,17 @@ async function moverFoto(fid,dir){
 let _lugarNuevoFoto=null,_lugarFotoTimer=null;
 function formFoto(fid){
   const f=DATOS.fotos.find(x=>x.id===fid);
+  const video=esVideo(f.url);
   const lugarActual=f.lugar_id?lugarDe(f.lugar_id):null;
   _lugarNuevoFoto=null;
   hoja(`
     <div class="grupo">
-      <div class="cab-hoja"><b>Editar foto</b><span>${f.titulo||''}</span></div>
+      <div class="cab-hoja"><b>Editar ${video?'vídeo':'foto'}</b><span>${f.titulo||''}</span></div>
       <div class="campo"><label>Título / archivo</label><input id="in-f-titulo" value="${f.titulo||''}"></div>
       <div class="campo"><label>Fecha</label><input id="in-f-fecha" type="date" value="${f.fecha||''}"></div>
-      <div class="campo"><label>EXIF (opcional)</label><input id="in-f-exif" value="${f.exif||''}" placeholder="f/2.8 · 1/640 · ISO 100 · 35mm"></div>
+      ${video
+        ?`<input type="hidden" id="in-f-exif" value="${(f.exif||'').replace(/"/g,'&quot;')}">`
+        :`<div class="campo"><label>EXIF (opcional)</label><input id="in-f-exif" value="${f.exif||''}" placeholder="f/2.8 · 1/640 · ISO 100 · 35mm"></div>`}
       <div class="campo">
         <label>Lugar propio (si es distinto al de la galería)</label>
         <input id="in-f-lugar-buscar" placeholder="Busca uno existente, escribe una dirección, o déjalo vacío" autocomplete="off"

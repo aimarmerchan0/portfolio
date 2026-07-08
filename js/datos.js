@@ -226,7 +226,12 @@ const miniDe = f => {
   if (esVideo(m)) return PLACEHOLDER_VIDEO; /* vídeo sin póster: icono de reproducción */
   return urlSegura(m);
 };
-const portadaDeGaleria = g => urlSegura(g.portada_url || (fotosDeGaleria(g.id)[0] || {}).url || "");
+const portadaDeGaleria = g => {
+  if (g.portada_url) return urlSegura(g.portada_url);
+  const primera = fotosDeGaleria(g.id)[0];
+  if (!primera) return "";
+  return miniDe(primera); /* si es un vídeo, usa su fotograma, nunca el archivo de vídeo */
+};
 
 /* ─── todas las fotos, de cualquier galería o lugar, en orden cronológico (más recientes primero) ─── */
 function todasLasFotosOrdenadas() {
