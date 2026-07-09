@@ -1607,7 +1607,8 @@ function fabMapa(){
   hoja(`
     <div class="grupo">
       <div class="cab-hoja"><b>Añadir lugar</b><span>Elige cómo quieres crearlo</span></div>
-      <button class="opcion" onclick="cerrarHoja();toast('Toca cualquier punto del mapa para crear ahí un lugar',3200)">Tocar el mapa (recomendado)</button>
+      <button class="opcion" onclick="abrirBuscadorLugarMapa()">🔍 Buscar una dirección o lugar</button>
+      <button class="opcion" onclick="cerrarHoja();toast('Toca cualquier punto del mapa para crear ahí un lugar',3200)">Tocar el mapa</button>
       <button class="opcion" onclick="cerrarHoja();formLugar(null)">Escribir coordenadas a mano</button>
     </div>
     <button class="cancelar" onclick="cerrarHoja()">Cancelar</button>`);
