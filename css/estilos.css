@@ -278,6 +278,10 @@ body.admin .cab-raiz .admin-chip{display:inline-flex}
   transition:transform .3s var(--rebote);
 }
 body:not(.admin) .fab{display:none!important}
+/* el mapa (Leaflet) y su carrusel usan z-index 400: el FAB debe ir por encima
+   o queda dibujado debajo del mapa y resulta invisible */
+#fab-mapa{bottom:calc(env(safe-area-inset-bottom) + 118px);z-index:450}
+#fab-mapa.oculta{opacity:0;pointer-events:none;transform:scale(.8);transition:opacity .3s ease,transform .3s ease}
 .fab:active{transform:scale(.85) rotate(45deg)}
 .fab svg{width:22px;height:22px;stroke:#FAFAF8;stroke-width:2;fill:none;stroke-linecap:round}
 
