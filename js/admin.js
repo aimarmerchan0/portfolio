@@ -747,5 +747,75 @@ function exportarCopiaSeguridad(){
   toast('Copia de seguridad descargada');
 }
 
+/* ═══ buscador de lugar para el mapa (estilo Google Maps) ═══
+   Escribes, ves resultados reales del mundo, tocas uno, el mapa vuela allí
+   y lo guardas de un toque. Sin coordenadas ni tocar el mapa a ciegas. */
+let _resultadosLugarMapa=[],_timerLugarMapa=null;
+function abrirBuscadorLugarMapa(){
+  if(!requiereAdmin())return;
+  hoja(`
+    <div class="grupo">
+      <div class="cab-hoja"><b>Buscar lugar</b><span>Escribe una ciudad, un monumento o una dirección</span></div>
+      <div class="campo">
+        <input id="in-buscar-lugar-mapa" placeholder="Ej. Playa de Levante, Benidorm" autocomplete="off"
+          oninput="buscarLugarMapa(this.value)">
+      </div>
+      <div id="resultados-lugar-mapa"></div>
+    </div>
+    <button class="cancelar" onclick="cerrarHoja()">Cancelar</button>`);
+  setTimeout(()=>{const el=$('in-buscar-lugar-mapa');if(el)el.focus();},260);
+}
+function buscarLugarMapa(q){
+  clearTimeout(_timerLugarMapa);
+  const texto=(q||'').trim();
+  const cont=$('resultados-lugar-mapa');
+  if(!cont)return;
+  if(texto.length<3){cont.innerHTML='<div class="resultado-dir cargando">Escribe al menos 3 letras…</div>';return;}
+  cont.innerHTML='<div class="resultado-dir cargando">Buscando…</div>';
+  _timerLugarMapa=setTimeout(async()=>{
+    const res=await buscarDireccion(texto);
+    _resultadosLugarMapa=res;
+    if(!res.length){cont.innerHTML='<div class="resultado-dir cargando">Sin resultados — prueba con otro nombre</div>';return;}
+    cont.innerHTML='<div class="resultado-cab">Resultados</div>'+res.map((r,i)=>{
+      const dup=buscarLugarSimilar(r.nombre,r.lat,r.lng);
+      return `<button class="resultado-dir" onclick="confirmarLugarMapa(${i})">
+        <b>${r.nombre}</b>
+        <span>${r.region||''}${dup?' · ya lo tienes guardado':''}</span>
+      </button>`;
+    }).join('');
+  },450);
+}
+function confirmarLugarMapa(i){
+  const r=_resultadosLugarMapa[i];
+  if(!r)return;
+  /* el mapa vuela allí para que lo veas de fondo antes de confirmar */
+  if(typeof mapa!=='undefined'&&mapa)mapa.flyTo([r.lat,r.lng],13,{duration:1.2});
+  const dup=buscarLugarSimilar(r.nombre,r.lat,r.lng);
+  hoja(`
+    <div class="grupo">
+      <div class="cab-hoja"><b>${r.nombre}</b><span>${r.region||''}</span></div>
+      <div class="dato">Coordenadas <span>${(+r.lat).toFixed(4)}, ${(+r.lng).toFixed(4)}</span></div>
+      ${dup?`<div class="dato">Aviso <span>Ya tienes "${dup.nombre}" muy cerca</span></div>`:''}
+      ${dup
+        ?`<button class="opcion" onclick="cerrarHoja();setTimeout(()=>seleccionarLugar('${dup.id}',true),300)">Ver el lugar que ya tienes</button>`
+        :''}
+    </div>
+    <button class="principal" onclick="guardarLugarBuscado(${i})">${dup?'Crear otro lugar aquí de todos modos':'Guardar este lugar'}</button>
+    <button class="cancelar" onclick="abrirBuscadorLugarMapa()">Volver a buscar</button>`);
+}
+async function guardarLugarBuscado(i){
+  if(!requiereAdmin())return;
+  const r=_resultadosLugarMapa[i];
+  if(!r){toast('Ese resultado ya no está disponible');return;}
+  cerrarHoja();subiendo('Guardando lugar…');
+  const nuevo=await dbInsert('lugares',{nombre:r.nombre,region:r.region,lat:r.lat,lng:r.lng});
+  if(!nuevo){subidaLista();return;}
+  await cargarDatos();renderTodo();
+  subidaLista();
+  toast(`"${r.nombre}" añadido al mapa`);
+  /* seleccionarLugar ya vuela hasta él y abre su ficha (para añadir fotos) */
+  setTimeout(()=>seleccionarLugar(nuevo.id,true),300);
+}
+
 /* restaurar sesión al abrir */
 restaurarSesion();

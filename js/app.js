@@ -312,6 +312,7 @@ async function reproducirViaje(){
   $('btn-viaje').style.display='none';
   $('btn-detener-viaje').style.display='inline-flex';
   if($('mapa-cartas'))$('mapa-cartas').classList.add('oculta');
+  if($('fab-mapa'))$('fab-mapa').classList.add('oculta');
   for(const l of ruta){
     if(!reproduciendoViaje)break;
     await volarAlugar(l);
@@ -387,6 +388,7 @@ function detenerViaje(){
   $('btn-viaje').style.display='';
   $('btn-detener-viaje').style.display='none';
   if($('mapa-cartas'))$('mapa-cartas').classList.remove('oculta');
+  if($('fab-mapa'))$('fab-mapa').classList.remove('oculta');
   ocultarTarjetaViaje();
 }
 function renderMarcadores(encuadrar=false){
