@@ -635,6 +635,7 @@ async function guardarFoto(fid){
     exif:$('in-f-exif').value.trim(),
     lugar_id:lugarId,
   });
+  fotoIdActiva=fid; /* el orden puede cambiar al editar fecha o lugar */
   await cargarDatos();renderTodo();refrescarColeccion();subidaLista();
   toast('Foto actualizada');
 }
@@ -653,7 +654,7 @@ function subirOriginal(fid){
     const f=DATOS.fotos.find(x=>x.id===fid);
     const carpeta=f.galeria_id?f.galeria_id+'/originales':'lugar-'+f.lugar_id+'/originales';
     const url=await subirArchivo(file,carpeta);
-    if(url){await dbUpdate('fotos',fid,{url_original:url});await cargarDatos();refrescarColeccion();}
+    if(url){await dbUpdate('fotos',fid,{url_original:url});fotoIdActiva=fid;await cargarDatos();refrescarColeccion();}
     subidaLista();
     toast('Original guardado — Antes/Después usará la foto real');
   };
@@ -664,6 +665,7 @@ async function eliminarFoto(fid){
   if(!confirm('¿Eliminar esta foto? No se puede deshacer.'))return;
   cerrarHoja();subiendo('Eliminando…');
   await dbDelete('fotos',fid);
+  fotoIdActiva=null; /* ya no existe: soltamos el ancla */
   await cargarDatos();renderTodo();
   volverDeFoto();refrescarColeccion();subidaLista();
 }
@@ -714,6 +716,9 @@ async function alternarDestacadaFoto(fid){
   const f=DATOS.fotos.find(x=>x.id===fid);
   const ok=await dbUpdate('fotos',fid,{destacada:!f.destacada});
   if(!ok)return;
+  /* anclamos la ficha a ESTA foto antes de refrescar: el array se reordena y
+     el índice antiguo apuntaría a otra distinta */
+  fotoIdActiva=fid;
   await cargarDatos();renderTodo();refrescarColeccion();
   toast(f.destacada?'Quitada de destacadas':'Marcada como destacada');
   abrirHojaInfo(); /* refresca la ficha para ver el botón actualizado */

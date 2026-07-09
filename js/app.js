@@ -495,7 +495,7 @@ function abrirLugar(lid){
   abrirColeccion({
     id:lid,tipo:'lugar',titulo:l.nombre,
     sub:`${l.region||''} · ${fotos.length} fotos${nG?` de ${nG} galería${nG>1?'s':''}`:''}`,
-    portada:urlSegura(fotos[0]?fotos[0].url:''),
+    portada:fotos[0]?miniDe(fotos[0]):'',
     fotos,mostrarOrigen:true,
   });
 }
@@ -681,6 +681,8 @@ function refrescarColeccion(){
   if(coleccion.tipo==='galeria')abrirGaleria(coleccion.id);
   else if(coleccion.tipo==='lugar')abrirLugar(coleccion.id);
   else if(coleccion.tipo==='cronologia'){coleccion.fotos=todasLasFotosOrdenadas();renderCronologia();}
+  /* el array de fotos se ha reconstruido: recolocamos el índice sobre la misma foto */
+  resincronizarFotoActiva();
 }
 function volverDeColec(){
   $('p-colec').classList.remove('abierta');
@@ -826,8 +828,25 @@ function insigniaVideo(f){
 }
 
 /* ═══ VISOR ═══ */
-let fotoIdx=0,slides=[],pulgs=[],celdas=[],cmpActivo=false;
+let fotoIdx=0,fotoIdActiva=null,slides=[],pulgs=[],celdas=[],cmpActivo=false;
 const carro=$('foto-carro'),tira=$('tira'),pFotoEl=$('p-foto');
+
+/* la foto activa se identifica SIEMPRE por su id, nunca por su posición:
+   tras recargar datos el array puede reordenarse y el índice apuntaría a otra.
+   Esta función es la única fuente de verdad de "qué foto estoy mirando". */
+function fotoActiva(){
+  if(fotoIdActiva){
+    const porId=coleccion.fotos.find(f=>f.id===fotoIdActiva);
+    if(porId)return porId;
+  }
+  return coleccion.fotos[fotoIdx];
+}
+/* tras un refresco, recoloca el índice para que siga apuntando a la MISMA foto */
+function resincronizarFotoActiva(){
+  if(!coleccion||!fotoIdActiva)return;
+  const i=coleccion.fotos.findIndex(f=>f.id===fotoIdActiva);
+  if(i>=0)fotoIdx=i;
+}
 function abrirFoto(j,origenEl=null){
   fotoIdx=j;
   carro.innerHTML='';tira.innerHTML='';
@@ -882,6 +901,7 @@ function volverDeFoto(){
 }
 function irAFoto(k,inmediato=false){
   fotoIdx=k;
+  fotoIdActiva=coleccion.fotos[k]?coleccion.fotos[k].id:null;
   if(inmediato)carro.style.transition='none';
   carro.style.transform=`translateX(${-k*100}%)`;
   if(inmediato)requestAnimationFrame(()=>carro.style.transition='');
@@ -962,7 +982,7 @@ zona.addEventListener('touchstart',()=>{
   if(cmpActivo)return;
   pulsoTimer=setTimeout(()=>{
     if(cmpActivo)return;
-    const f=coleccion.fotos[fotoIdx];
+    const f=fotoActiva();
     if(esVideo(f.url))return; /* en un vídeo la pulsación larga no tiene sentido */
     const marco=slides[fotoIdx].querySelector('.marco');
     if(f.url_original){
@@ -990,7 +1010,7 @@ zona.addEventListener('touchstart',()=>{
    romper el estado, y ambas se ven exactamente al mismo tamaño. */
 function alternarComparador(){cmpActivo?quitarComparador():ponerComparador();}
 function ponerComparador(){
-  const f=coleccion.fotos[fotoIdx];
+  const f=fotoActiva();
   if(!f.url_original){toastAdmin('Esta foto no tiene original subido');return;}
   if(esFormatoNoVisible(f.url_original)){
     toastAdmin('El original guardado es un archivo RAW y los navegadores no pueden mostrarlo. Súbelo de nuevo en JPG desde Info.',6500);
@@ -1049,7 +1069,7 @@ function quitarComparador(){
 }
 function compartirFoto(){
   const url=location.origin+location.pathname+location.hash;
-  const f=coleccion.fotos[fotoIdx];
+  const f=fotoActiva();
   if(navigator.share){
     navigator.share({title:f.titulo||PERFIL.nombre,url}).catch(()=>{});
   }else if(navigator.clipboard){
@@ -1058,33 +1078,131 @@ function compartirFoto(){
     toast('Compartir no está disponible en este navegador');
   }
 }
+/* ═══ elegir el fotograma de portada de un vídeo ═══
+   Se reproduce el vídeo en un lienzo con un deslizador de tiempo; el fotograma
+   que estés viendo es el que se guardará como portada (miniatura). */
+let _videoPortada=null;
+function elegirPortadaVideo(fid){
+  if(!requiereAdmin())return;
+  const f=DATOS.fotos.find(x=>x.id===fid);
+  if(!f||!esVideo(f.url)){toast('Esto no es un vídeo');return;}
+  _videoPortada={fid,url:f.url,duracion:0,listo:false};
+  hoja(`
+    <div class="grupo">
+      <div class="cab-hoja"><b>Fotograma de portada</b><span>Mueve el deslizador y elige el momento exacto</span></div>
+      <div class="zona-frame">
+        <video id="video-portada" src="${f.url}" muted playsinline webkit-playsinline preload="auto" crossorigin="anonymous"></video>
+        <div id="estado-frame" class="estado-frame">Cargando vídeo…</div>
+      </div>
+      <div class="campo">
+        <label>Momento del vídeo · <span id="tiempo-frame">0:00</span></label>
+        <input type="range" id="slider-frame" min="0" max="100" value="0" step="0.1" disabled oninput="moverFrameVideo(this.value)">
+      </div>
+    </div>
+    <button class="principal" id="btn-usar-frame" disabled onclick="guardarPortadaVideo()">Usar este fotograma</button>
+    <button class="cancelar" onclick="cerrarHoja()">Cancelar</button>`);
+  const v=$('video-portada');
+  v.onloadedmetadata=async()=>{
+    _videoPortada.duracion=v.duration||0;
+    /* iOS Safari no pinta fotogramas en un lienzo hasta que el vídeo se ha
+       reproducido al menos una vez: lo arrancamos y paramos al instante */
+    try{ await v.play(); v.pause(); }catch(e){ /* si lo bloquea, seguimos */ }
+    v.currentTime=Math.min(0.6,(v.duration||1)*0.15);
+  };
+  v.onseeked=()=>{
+    if(_videoPortada&&!_videoPortada.listo&&v.videoWidth){
+      _videoPortada.listo=true;
+      const est=$('estado-frame'); if(est)est.style.display='none';
+      const sl=$('slider-frame'); if(sl)sl.disabled=false;
+      const btn=$('btn-usar-frame'); if(btn)btn.disabled=false;
+    }
+  };
+  v.onerror=()=>{
+    const est=$('estado-frame');
+    if(est)est.textContent='No se pudo cargar el vídeo';
+    toastAdmin('No se pudo cargar el vídeo para elegir el fotograma',4500);
+  };
+}
+function moverFrameVideo(pct){
+  const v=$('video-portada');
+  if(!v||!_videoPortada||!_videoPortada.duracion)return;
+  const t=(pct/100)*_videoPortada.duracion;
+  v.currentTime=t;
+  $('tiempo-frame').textContent=duracionLegible(t);
+}
+async function guardarPortadaVideo(){
+  if(!requiereAdmin())return;
+  const v=$('video-portada');
+  if(!v||!_videoPortada){toast('No hay vídeo cargado');return;}
+  if(!v.videoWidth||!_videoPortada.listo){toast('Espera a que el vídeo cargue del todo');return;}
+  const fid=_videoPortada.fid;
+  cerrarHoja();subiendo('Guardando portada…');
+  try{
+    const maxDim=480;
+    const escala=Math.min(1,maxDim/Math.max(v.videoWidth,v.videoHeight));
+    const cv=document.createElement('canvas');
+    cv.width=Math.round(v.videoWidth*escala);
+    cv.height=Math.round(v.videoHeight*escala);
+    cv.getContext('2d').drawImage(v,0,0,cv.width,cv.height);
+    let blob;
+    try{
+      blob=await new Promise((res,rej)=>cv.toBlob(b=>b?res(b):rej(new Error('lienzo vacío')),'image/jpeg',0.75));
+    }catch(errCanvas){
+      throw new Error('el navegador bloqueó la captura del fotograma (CORS)');
+    }
+    const f=DATOS.fotos.find(x=>x.id===fid);
+    const carpeta=f.galeria_id?f.galeria_id:('lugar-'+(f.lugar_id||'suelto'));
+    const file=new File([blob],'poster.jpg',{type:'image/jpeg'});
+    const url=await _subirUnArchivo(file,carpeta,'_mini');
+    if(!url)throw new Error('no se pudo subir la portada');
+    const ok=await dbUpdate('fotos',fid,{miniatura:url});
+    if(!ok)throw new Error('no se pudo guardar');
+    fotoIdActiva=fid;
+    await cargarDatos();renderTodo();refrescarColeccion();
+    subidaLista();
+    toast('Portada del vídeo actualizada');
+  }catch(err){
+    subidaLista();
+    console.error(err);
+    toast('No se pudo guardar la portada: '+err.message,5000);
+  }
+}
+
 function abrirHojaInfo(){
-  const f=coleccion.fotos[fotoIdx];
+  const f=fotoActiva();
+  const video=esVideo(f.url);
   const fecha=f.fechaEfectiva?fechaMostrar(f.fechaEfectiva):null;
   const contexto=(coleccion.tipo==='lugar'||coleccion.tipo==='cronologia')&&f.galeria?' · Galería '+f.galeria:'';
   const ubicacion=coleccion.tipo==='cronologia'?f.lugarNombre:null;
-  const fotoRota=esFormatoNoVisible(f.url);
+  const fotoRota=!video&&esFormatoNoVisible(f.url);
   let estadoOriginal=null;
-  if(SESION){
+  if(SESION&&!video){
     estadoOriginal=!f.url_original?'No subido (se simula)'
       :esFormatoNoVisible(f.url_original)?'⚠️ RAW no compatible — vuelve a subir en JPG'
       :'Sí — se usa al comparar';
   }
+  const etiquetaTipo=video?'Vídeo':'Foto';
   hoja(`
     <div class="grupo">
       <div class="cab-hoja"><b>${tituloMostrable(f)||'&nbsp;'}</b><span>${coleccion.titulo}${contexto}</span></div>
       ${SESION&&fotoRota?`<div class="dato">Foto principal <span>⚠️ RAW no compatible — súbela de nuevo en JPG</span></div>`:''}
+      <div class="dato">Tipo <span>${etiquetaTipo}</span></div>
       ${fecha?`<div class="dato">Fecha <span>${fecha}</span></div>`:''}
       ${ubicacion?`<div class="dato">Ubicación <span>${ubicacion}</span></div>`:''}
-      ${f.exif?`<div class="dato">Ajustes <span>${f.exif}</span></div>`:''}
+      ${f.exif?`<div class="dato">${video?'Duración':'Ajustes'} <span>${video?f.exif.replace(/^Vídeo · ?/,''):f.exif}</span></div>`:''}
       ${estadoOriginal?`<div class="dato">Original (antes) <span>${estadoOriginal}</span></div>`:''}
-      ${!fotoRota&&!esVideo(f.url)?`<button class="opcion" onclick="exportarPolaroid()">📷 Descargar como Polaroid</button>`:''}
-      ${SESION?`
+      ${!fotoRota&&!video?`<button class="opcion" onclick="exportarPolaroid()">📷 Descargar como Polaroid</button>`:''}
+      ${SESION?(video?`
+        <button class="opcion" onclick="cerrarHoja();formFoto('${f.id}')">Editar título / fecha / lugar</button>
+        <button class="opcion" onclick="cerrarHoja();elegirPortadaVideo('${f.id}')">🎞 Elegir fotograma de portada</button>
+        <button class="opcion" onclick="alternarDestacadaFoto('${f.id}')">${f.destacada?'★ Quitar de destacados':'☆ Marcar como destacado'}</button>
+        ${f.galeria_id?`<button class="opcion" onclick="cerrarHoja();usarComoPortada('${f.id}')">Usar su portada en la galería</button>`:''}
+        <button class="opcion peligro" onclick="eliminarFoto('${f.id}')">Eliminar vídeo</button>`:`
         <button class="opcion" onclick="cerrarHoja();formFoto('${f.id}')">Editar título / fecha / EXIF / lugar</button>
         <button class="opcion" onclick="alternarDestacadaFoto('${f.id}')">${f.destacada?'★ Quitar de destacadas':'☆ Marcar como destacada'}</button>
         <button class="opcion" onclick="cerrarHoja();subirOriginal('${f.id}')">Subir foto original (antes)</button>
         ${f.galeria_id?`<button class="opcion" onclick="cerrarHoja();usarComoPortada('${f.id}')">Usar como portada de la galería</button>`:''}
-        <button class="opcion peligro" onclick="eliminarFoto('${f.id}')">Eliminar foto</button>`:''}
+        <button class="opcion peligro" onclick="eliminarFoto('${f.id}')">Eliminar foto</button>`):''}
     </div>
     <button class="cancelar" onclick="cerrarHoja()">Cerrar</button>`);
 }
@@ -1100,7 +1218,7 @@ async function cargarFuentePolaroid(){
   _fuentePolaroidCargada=true;
 }
 async function exportarPolaroid(){
-  const f=coleccion.fotos[fotoIdx];
+  const f=fotoActiva();
   if(esVideo(f.url)){toast('La polaroid solo está disponible para fotos');return;}
   if(esFormatoNoVisible(f.url)){toast('Esta foto no se puede exportar (formato no compatible)');return;}
   toast('Generando polaroid…');
