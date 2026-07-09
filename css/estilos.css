@@ -477,7 +477,12 @@ body.admin #fab-colec.visible{display:flex}
 }
 .btn-sonido:active{transform:scale(.9)}
 /* selector de fotograma de portada */
-.zona-frame{padding:14px 18px 4px}
+.zona-frame{padding:14px 18px 4px;position:relative}
+.estado-frame{
+  position:absolute;inset:14px 18px 4px;display:flex;align-items:center;justify-content:center;
+  border-radius:14px;background:rgba(20,20,18,.72);color:#FAFAF8;font-size:13px;pointer-events:none;
+}
+#slider-frame:disabled{opacity:.4}
 #video-portada{width:100%;max-height:38vh;border-radius:14px;background:#000;object-fit:contain}
 #slider-frame{width:100%;accent-color:var(--tinta);height:30px}
 #tiempo-frame{color:var(--tinta);font-variant-numeric:tabular-nums}
